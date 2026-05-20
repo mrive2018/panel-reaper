@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel de Control - Reaper 550</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #121212; color: #ffffff; text-align: center; padding: 20px; }
+        .card { background-color: #1e1e1e; border-radius: 12px; padding: 20px; margin: 15px auto; max-width: 400px; box-shadow: 0 4px 10px rgba(0,0,0,0.5); border-left: 5px solid #ff5500; }
+        .status { font-size: 24px; font-weight: bold; color: #00ff00; }
+        .battery-bar { background-color: #333; border-radius: 10px; height: 20px; width: 80%; margin: 10px auto; overflow: hidden; }
+        .battery-level { background-color: #00ff00; height: 100%; width: 85%; }
+        .btn { background-color: #ff5500; color: white; border: none; padding: 10px 20px; font-size: 16px; border-radius: 5px; cursor: pointer; margin: 5px; font-weight: bold; }
+        .btn:hover { background-color: #e04e00; }
+    </style>
+</head>
+<body>
+    <h1>🚜 REAPER - AUTOMOWER 550 🚜</h1>
+    <p>Estado de la conexión: <span style="color: #00ff00; font-weight: bold;">● EN LÍNEA</span></p>
+    
+    <div class="card">
+        <h3>Estado del Robot</h3>
+        <div class="status">CORTANDO</div>
+        <p>Ubicación: Jardín Principal</p>
+    </div>
+
+    <div class="card">
+        <h3>Batería</h3>
+        <div class="battery-bar"><div class="battery-level"></div></div>
+        <p>85% - Unas 3 horas restantes de trabajo</p>
+    </div>
+
+    <div class="card">
+        <h3>Cuchillas Endurance</h3>
+        <p>Horas de uso acumuladas: <strong>42 horas</strong></p>
+        <p>Estado estimado del filo: <span style="color: #ffcc00;">Bueno (70%)</span></p>
+    </div>
+
+    <div class="card">
+        <h3>Controles de Emergencia</h3>
+        <button class="btn" onclick="alert('Orden enviada: PAUSAR el Automower...')">PAUSA</button>
+        <button class="btn" style="background-color: #444;" onclick="alert('Orden enviada: ENVIAR A LA ESTACIÓN DE CARGA...')">ESTACIÓN</button>
+    </div>
+</body>
+</html>
