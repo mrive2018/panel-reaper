@@ -1,12 +1,11 @@
 export default async function handler(req, res) {
-  // 1. El camarero coge tus llaves secretas de Vercel
   const clientId = process.env.HUSQVARNA_CLIENT_ID;
   const clientSecret = process.env.HUSQVARNA_CLIENT_SECRET;
   const username = process.env.HUSQVARNA_USERNAME;
   const password = process.env.HUSQVARNA_PASSWORD;
 
   try {
-    // 2. Llama a la oficina central de Husqvarna para pedir permiso (Token)
+    // 1. El camarero pide el token de acceso
     const authResponse = await fetch('https://api.amc.husqvarna.dev/v1/oauth2/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -20,20 +19,24 @@ export default async function handler(req, res) {
     });
 
     const authData = await authResponse.json();
+    
+    if (!authResponse.ok) {
+      return res.status(authResponse.status).json({ error: 'Fallo al pedir el token', detalles: authData });
+    }
+
     const token = authData.access_token;
 
-    // 3. Con el permiso en la mano, le pide los datos de "Reaper"
+    // 2. Pedir los datos de Reaper (Ahora con la X-Api-Key obligatoria)
     const mowerResponse = await fetch('https://api.amc.husqvarna.dev/v1/mowers', {
       headers: {
         'Authorization': `Bearer ${token}`,
+        'X-Api-Key': clientId, // <-- ¡Aquí está la llave que nos faltaba!
         'X-Sign-In-Provider': 'Husqvarna',
         'Content-Type': 'application/vnd.api+json'
       }
     });
 
     const mowerData = await mowerResponse.json();
-    
-    // 4. Te devuelve los datos reales y frescos a la pantalla
     return res.status(200).json(mowerData);
 
   } catch (error) {
