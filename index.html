@@ -87,3 +87,142 @@
             <div class="bg-gray-800/60 border border-gray-700/50 rounded-xl p-4 shadow-md">
                 <p class="text-xs text-gray-400">Impactos Registrados</p>
                 <p class="text-xl font-bold text-red-400 mt-1" id="stat-collisions">--</p>
+                <p class="text-[10px] text-gray-500 mt-0.5">Choques acumulados</p>
+            </div>
+            <div class="bg-gray-800/60 border border-gray-700/50 rounded-xl p-4 shadow-md">
+                <p class="text-xs text-gray-400">Ciclos de Carga</p>
+                <p class="text-xl font-bold text-blue-400 mt-1" id="stat-cycles">--</p>
+                <p class="text-[10px] text-gray-500 mt-0.5">Cargas en base</p>
+            </div>
+            <div class="bg-gray-800/60 border border-gray-700/50 rounded-xl p-4 shadow-md">
+                <p class="text-xs text-gray-400">Tiempo de Corte</p>
+                <p class="text-xl font-bold text-purple-400 mt-1" id="stat-hours">-- h</p>
+                <p class="text-[10px] text-gray-500 mt-0.5">Uso de cuchillas</p>
+            </div>
+        </div>
+
+        <h2 class="text-sm font-bold uppercase tracking-widest text-gray-400 pt-2 border-t border-gray-800">
+            <i class="fa-solid fa-heart-pulse text-red-500 mr-2"></i> Diagnóstico de Vida Útil
+        </h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="bg-gray-800 border border-gray-700 rounded-2xl p-5 shadow-md">
+                <div class="flex justify-between items-start">
+                    <p class="text-sm font-semibold text-gray-300">Vida Útil Batería</p>
+                    <span id="health-battery-badge" class="text-xs font-bold px-2 py-0.5 rounded">--</span>
+                </div>
+                <div class="mt-4 bg-gray-700 rounded-full h-2 overflow-hidden">
+                    <div id="health-battery-bar" class="h-full transition-all" style="width: 0%"></div>
+                </div>
+                <p class="text-xs text-gray-500 mt-3" id="health-battery-desc">Analizando celdas...</p>
+            </div>
+            <div class="bg-gray-800 border border-gray-700 rounded-2xl p-5 shadow-md">
+                <div class="flex justify-between items-start">
+                    <p class="text-sm font-semibold text-gray-300">Estrés de Tracción</p>
+                    <span id="health-motor-badge" class="text-xs font-bold px-2 py-0.5 rounded">--</span>
+                </div>
+                <div class="mt-4 bg-gray-700 rounded-full h-2 overflow-hidden">
+                    <div id="health-motor-bar" class="h-full transition-all" style="width: 0%"></div>
+                </div>
+                <p class="text-xs text-gray-500 mt-3" id="health-motor-desc">Calculando fricción...</p>
+            </div>
+            <div class="bg-gray-800 border border-gray-700 rounded-2xl p-5 shadow-md">
+                <div class="flex justify-between items-start">
+                    <p class="text-sm font-semibold text-gray-300">Desgaste del Filo</p>
+                    <span id="health-blades-badge" class="text-xs font-bold px-2 py-0.5 rounded">--</span>
+                </div>
+                <div class="mt-4 bg-gray-700 rounded-full h-2 overflow-hidden">
+                    <div id="health-blades-bar" class="h-full transition-all" style="width: 0%"></div>
+                </div>
+                <p class="text-xs text-gray-500 mt-3" id="health-blades-desc">Filo preventivo...</p>
+            </div>
+        </div>
+
+        <div id="debug-box" class="bg-gray-800 border border-gray-700 rounded-xl p-4">
+            <p class="text-xs font-bold text-gray-400"><i class="fa-solid fa-code mr-1"></i> Estado del Mapeo de Datos:</p>
+            <p id="debug-text" class="text-xs text-yellow-400 mt-1">Esperando primera sincronización...</p>
+        </div>
+
+    </main>
+
+    <script>
+        let mapaL = null;
+        let capaPuntos = null;
+
+        const traductorActividad = {
+            'MOWING': 'Segando el jardín',
+            'STARTING': 'Arrancando motores',
+            'GOING_HOME': 'Regresando a base',
+            'CHARGING': 'Cargando batería',
+            'PARKED': 'Estacionado en base',
+            'PAUSED': 'En pausa',
+            'STOPPED': 'Detenido',
+            'NONE': 'En reposo'
+        };
+
+        async function cargarTodo() {
+            let jsonLog = "Inicio lectura.";
+            try {
+                const respuesta = await fetch('/api/reaper');
+                if (!respuesta.ok) {
+                    document.getElementById('debug-text').innerText = `Error HTTP: ${respuesta.status}`;
+                    return;
+                }
+
+                const json = await respuesta.json();
+                if (!json || !json.data || json.data.length === 0) {
+                    document.getElementById('debug-text').innerText = "La API responde bien, pero el array 'data' viene vacío.";
+                    return;
+                }
+
+                const reaper = json.data[0];
+                const attrs = reaper.attributes || {};
+
+                // ==========================================
+                // CIRCUITO 1: DATOS BÁSICOS Y ESTADO (AISLADO)
+                // ==========================================
+                try {
+                    if (attrs.system) {
+                        document.getElementById('mower-name').innerText = attrs.system.name || "Reaper";
+                        document.getElementById('mower-model').innerText = `${attrs.system.model || '--'} (S/N: ${attrs.system.serialNumber || '--'})`;
+                    }
+                    
+                    const act = attrs.mower ? attrs.mower.activity : 'NONE';
+                    document.getElementById('mower-status').innerText = traductorActividad[act] || act;
+
+                    const iconDiv = document.getElementById('status-icon');
+                    if (act === 'MOWING') iconDiv.innerHTML = '<i class="fa-solid fa-circle-notch animate-spin text-emerald-400"></i>';
+                    else if (act === 'CHARGING') iconDiv.innerHTML = '<i class="fa-solid fa-bolt text-yellow-400"></i>';
+                    else iconDiv.innerHTML = '<i class="fa-solid fa-moon text-gray-400"></i>';
+
+                    const statusBadge = document.getElementById('connection-status');
+                    if (attrs.metadata && attrs.metadata.connected) {
+                        statusBadge.innerText = "En Línea";
+                        statusBadge.className = "px-3 py-1 rounded-full text-xs font-semibold bg-emerald-950 text-emerald-400 border border-emerald-800";
+                    } else {
+                        statusBadge.innerText = "Fuera de Línea";
+                        statusBadge.className = "px-3 py-1 rounded-full text-xs font-semibold bg-red-950 text-red-400 border border-red-800";
+                    }
+                } catch (e) {
+                    console.error("Fallo en bloque básico:", e);
+                }
+
+                // ==========================================
+                // CIRCUITO 2: ENERGÍA Y ALTURA (AISLADO)
+                // ==========================================
+                try {
+                    if (attrs.battery) {
+                        const pct = attrs.battery.batteryPercent ?? 0;
+                        document.getElementById('battery-text').innerText = `${pct}%`;
+                        
+                        const bBar = document.getElementById('battery-bar');
+                        bBar.style.width = `${pct}%`;
+                        bBar.className = pct > 50 ? "bg-emerald-500 h-full" : (pct > 20 ? "bg-yellow-500 h-full" : "bg-red-500 h-full animate-pulse");
+
+                        const rest = attrs.battery.remainingChargingTime;
+                        document.getElementById('battery-details').innerText = rest > 0 ? `${rest} min para llenar` : "En descarga";
+                    }
+                    if (attrs.settings) {
+                        document.getElementById('cutting-height').innerText = attrs.settings.cuttingHeight ?? '--';
+                    }
+                } catch (e) {
+                    console.error("Fallo en bloque energía
