@@ -1,20 +1,16 @@
 export default async function handler(req, res) {
   const clientId = process.env.HUSQVARNA_CLIENT_ID;
   const clientSecret = process.env.HUSQVARNA_CLIENT_SECRET;
-  const username = process.env.HUSQVARNA_USERNAME;
-  const password = process.env.HUSQVARNA_PASSWORD;
 
   try {
-    // 1. El camarero pide el token de acceso
-    const authResponse = await fetch('https://api.amc.husqvarna.dev/v1/oauth2/token', {
+    // 1. Pedir el token usando el nuevo método oficial (client_credentials)
+    const authResponse = await fetch('https://api.authentication.husqvarnagroup.dev/v1/oauth2/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
-        grant_type: 'password',
+        grant_type: 'client_credentials',
         client_id: clientId,
-        client_secret: clientSecret,
-        username: username,
-        password: password
+        client_secret: clientSecret
       })
     });
 
@@ -26,12 +22,11 @@ export default async function handler(req, res) {
 
     const token = authData.access_token;
 
-    // 2. Pedir los datos de Reaper (Ahora con la X-Api-Key obligatoria)
+    // 2. Pedir los datos de Reaper con el nuevo token
     const mowerResponse = await fetch('https://api.amc.husqvarna.dev/v1/mowers', {
       headers: {
         'Authorization': `Bearer ${token}`,
-        'X-Api-Key': clientId, // <-- ¡Aquí está la llave que nos faltaba!
-        'X-Sign-In-Provider': 'Husqvarna',
+        'X-Api-Key': clientId,
         'Content-Type': 'application/vnd.api+json'
       }
     });
