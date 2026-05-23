@@ -10,7 +10,7 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
         #map { height: 320px; z-index: 1; }
-        .leaflet-tile { filter: grayscale(1) invert(1) opacity(0.6); } /* Mapa modo oscuro */
+        .leaflet-tile { filter: grayscale(1) invert(1) opacity(0.6); }
     </style>
 </head>
 <body class="bg-gray-900 text-gray-100 min-h-screen font-sans">
@@ -59,20 +59,18 @@
                 <div>
                     <p class="text-xs text-gray-400 uppercase tracking-wider font-semibold">Altura de Corte</p>
                     <h3 class="text-4xl font-black text-orange-400 mt-1" id="cutting-height">--</h3>
-                    <p class="text-[10px] text-gray-500 mt-1">Configuración electrónica</p>
+                    <p class="text-[10px] text-gray-500 mt-1">Configuración actual</p>
                 </div>
-                <div class="text-gray-600 text-3xl p-2">
-                    <i class="fa-solid fa-sliders"></i>
-                </div>
+                <div class="text-gray-600 text-3xl p-2"><i class="fa-solid fa-sliders"></i></div>
             </div>
         </div>
 
         <div class="bg-gray-800 border border-gray-700 rounded-2xl p-4 shadow-xl">
             <div class="mb-2 flex justify-between items-center">
                 <p class="text-xs text-gray-400 uppercase tracking-wider font-semibold">
-                    <i class="fa-solid fa-map-location-dot text-orange-500 mr-1"></i> Mapa de Densidad de Paso GPS
+                    <i class="fa-solid fa-map-location-dot text-orange-500 mr-1"></i> Mapa de Densidad de Paso (Zonas de Esfuerzo)
                 </p>
-                <span class="text-[10px] bg-orange-950 text-orange-400 px-2 py-0.5 rounded border border-orange-900">Historial Reciente</span>
+                <span class="text-[10px] bg-orange-950 text-orange-400 px-2 py-0.5 rounded border border-orange-900">Últimos 50 puntos</span>
             </div>
             <div id="map" class="rounded-xl overflow-hidden bg-gray-950"></div>
         </div>
@@ -94,17 +92,17 @@
             <div class="bg-gray-800/60 border border-gray-700/50 rounded-xl p-4 shadow-md">
                 <p class="text-xs text-gray-400">Ciclos de Carga</p>
                 <p class="text-xl font-bold text-blue-400 mt-1" id="stat-cycles">--</p>
-                <p class="text-[10px] text-gray-500 mt-0.5">Descargas/Cargas</p>
+                <p class="text-[10px] text-gray-500 mt-0.5">Cargas en base</p>
             </div>
             <div class="bg-gray-800/60 border border-gray-700/50 rounded-xl p-4 shadow-md">
                 <p class="text-xs text-gray-400">Tiempo de Corte</p>
                 <p class="text-xl font-bold text-purple-400 mt-1" id="stat-hours">-- h</p>
-                <p class="text-[10px] text-gray-500 mt-0.5">Uso real de cuchillas</p>
+                <p class="text-[10px] text-gray-500 mt-0.5">Uso de cuchillas</p>
             </div>
         </div>
 
         <h2 class="text-sm font-bold uppercase tracking-widest text-gray-400 pt-2 border-t border-gray-800">
-            <i class="fa-solid fa-heart-pulse text-red-500 mr-2"></i> Diagnóstico Avanzado de Componentes
+            <i class="fa-solid fa-heart-pulse text-red-500 mr-2"></i> Diagnóstico de Vida Útil
         </h2>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div class="bg-gray-800 border border-gray-700 rounded-2xl p-5 shadow-md">
@@ -125,7 +123,7 @@
                 <div class="mt-4 bg-gray-700 rounded-full h-2 overflow-hidden">
                     <div id="health-motor-bar" class="h-full transition-all" style="width: 0%"></div>
                 </div>
-                <p class="text-xs text-gray-500 mt-3" id="health-motor-desc">Calculando fricción de terreno...</p>
+                <p class="text-xs text-gray-500 mt-3" id="health-motor-desc">Calculando fricción...</p>
             </div>
             <div class="bg-gray-800 border border-gray-700 rounded-2xl p-5 shadow-md">
                 <div class="flex justify-between items-start">
@@ -135,8 +133,13 @@
                 <div class="mt-4 bg-gray-700 rounded-full h-2 overflow-hidden">
                     <div id="health-blades-bar" class="h-full transition-all" style="width: 0%"></div>
                 </div>
-                <p class="text-xs text-gray-500 mt-3" id="health-blades-desc">Mantenimiento preventivo...</p>
+                <p class="text-xs text-gray-500 mt-3" id="health-blades-desc">Filo preventivo...</p>
             </div>
+        </div>
+
+        <div id="debug-box" class="hidden bg-red-950/40 border border-red-900 rounded-xl p-4 text-center">
+            <p class="text-xs font-bold text-red-400"><i class="fa-solid fa-triangle-exclamation mr-1"></i> Alerta del Servidor:</p>
+            <p id="debug-text" class="text-xs text-red-300 mt-1">Ninguno</p>
         </div>
 
     </main>
@@ -158,39 +161,42 @@
 
         async function cargarTodo() {
             try {
+                // Forzar limpieza de avisos de error anteriores
+                document.getElementById('debug-box').classList.add('hidden');
+
+                // 1. Llamada a la API
                 const respuesta = await fetch('/api/reaper');
+                if (!respuesta.ok) {
+                    throw new Error(`La API respondió con código de error ${respuesta.status} (${respuesta.statusText})`);
+                }
+
                 const json = await respuesta.json();
-                
-                if (!json.data || json.data.length === 0) {
-                    document.getElementById('mower-status').innerText = "Sin respuesta";
-                    return;
+                if (!json || !json.data || json.data.length === 0) {
+                    throw new Error("El archivo de datos llegó vacío o no tiene la estructura correcta.");
                 }
 
                 const reaper = json.data[0];
                 const attrs = reaper.attributes;
                 const stats = reaper.statistics;
 
-                // 1. Setear Textos Cabecera y Estado
+                // 2. Volcar Textos Principales
                 document.getElementById('mower-name').innerText = attrs.system.name;
                 document.getElementById('mower-model').innerText = `${attrs.system.model} (S/N: ${attrs.system.serialNumber})`;
                 
                 const act = attrs.mower.activity;
                 document.getElementById('mower-status').innerText = traductorActividad[act] || act;
 
-                // Modificar el icono dinámico
+                // Icono dinámico
                 const iconDiv = document.getElementById('status-icon');
                 if (act === 'MOWING') {
                     iconDiv.innerHTML = '<i class="fa-solid fa-circle-notch animate-spin text-emerald-400"></i>';
-                    iconDiv.className = "w-10 h-10 rounded-full bg-emerald-950/50 border border-emerald-800 flex items-center justify-center text-md";
                 } else if (act === 'CHARGING') {
                     iconDiv.innerHTML = '<i class="fa-solid fa-bolt text-yellow-400"></i>';
-                    iconDiv.className = "w-10 h-10 rounded-full bg-yellow-950/50 border border-yellow-800 flex items-center justify-center text-md";
                 } else {
                     iconDiv.innerHTML = '<i class="fa-solid fa-moon text-gray-400"></i>';
-                    iconDiv.className = "w-10 h-10 rounded-full bg-gray-700 flex items-center justify-center text-md";
                 }
 
-                // Badge de conexión de Vercel
+                // Estado de Conexión
                 const statusBadge = document.getElementById('connection-status');
                 if (attrs.metadata.connected) {
                     statusBadge.innerText = "En Línea";
@@ -200,23 +206,19 @@
                     statusBadge.className = "px-3 py-1 rounded-full text-xs font-semibold bg-red-950 text-red-400 border border-red-800";
                 }
 
-                // 2. Batería e hilos
+                // 3. Energía y Altura
                 const pct = attrs.battery.batteryPercent;
                 document.getElementById('battery-text').innerText = `${pct}%`;
                 
                 const bBar = document.getElementById('battery-bar');
                 bBar.style.width = `${pct}%`;
-                if (pct > 50) bBar.className = "bg-emerald-500 h-full transition-all";
-                else if (pct > 20) bBar.className = "bg-yellow-500 h-full transition-all";
-                else bBar.className = "bg-red-500 h-full transition-all animate-pulse";
+                bBar.className = pct > 50 ? "bg-emerald-500 h-full" : (pct > 20 ? "bg-yellow-500 h-full" : "bg-red-500 h-full animate-pulse");
 
                 const rest = attrs.battery.remainingChargingTime;
-                document.getElementById('battery-details').innerText = rest > 0 ? `${rest} min restantes` : "En descarga";
-
-                // 3. Altura de corte
+                document.getElementById('battery-details').innerText = rest > 0 ? `${rest} min para llenar` : "En descarga";
                 document.getElementById('cutting-height').innerText = attrs.settings.cuttingHeight;
 
-                // 4. DATOS HISTÓRICOS BRUTOS
+                // 4. DATOS BRUTOS EXCLUSIVOS (LOS QUE FALTABAN)
                 const kilometros = (stats.totalDriveDistance / 1000).toFixed(1);
                 document.getElementById('stat-distance').innerText = `${kilometros} km`;
                 document.getElementById('stat-collisions').innerText = stats.numberOfCollisions;
@@ -225,4 +227,71 @@
                 const horasNetas = Math.round(stats.totalCuttingTime / 3600);
                 document.getElementById('stat-hours').innerText = `${horasNetas} h`;
 
-                // 5. REND
+                // 5. CÁLCULO DE DESGASTE TÉCNICO
+                // Batería (Degradación sobre base de 1500 ciclos)
+                const batHealth = Math.max(0, 100 - ((stats.numberOfChargingCycles / 1500) * 100)).toFixed(0);
+                document.getElementById('health-battery-bar').style.width = `${batHealth}%`;
+                document.getElementById('health-battery-bar').className = batHealth > 85 ? "bg-emerald-500 h-full" : "bg-yellow-500 h-full";
+                document.getElementById('health-battery-badge').innerText = `${batHealth}%`;
+                document.getElementById('health-battery-badge').className = batHealth > 85 ? "text-xs font-bold px-2 py-0.5 rounded bg-emerald-950 text-emerald-400" : "text-xs font-bold px-2 py-0.5 rounded bg-yellow-950 text-yellow-400";
+                document.getElementById('health-battery-desc').innerText = `${stats.numberOfChargingCycles} ciclos de carga completados de fábrica.`;
+
+                // Tracción (Choques por hora)
+                const totalHorasUso = stats.totalRunningTime / 3600;
+                const ratioChoques = (stats.numberOfCollisions / totalHorasUso).toFixed(2);
+                let motorScore = 100 - (ratioChoques * 40);
+                motorScore = Math.min(100, Math.max(10, motorScore)).toFixed(0);
+                document.getElementById('health-motor-bar').style.width = `${motorScore}%`;
+                document.getElementById('health-motor-bar').className = ratioChoques > 1.1 ? "bg-red-500 h-full" : "bg-emerald-500 h-full";
+                document.getElementById('health-motor-badge').innerText = ratioChoques > 1.1 ? "Estrés Alto" : "Normal";
+                document.getElementById('health-motor-badge').className = ratioChoques > 1.1 ? "text-xs font-bold px-2 py-0.5 rounded bg-red-950 text-red-400" : "text-xs font-bold px-2 py-0.5 rounded bg-emerald-950 text-emerald-400";
+                document.getElementById('health-motor-desc').innerText = `Media de ${ratioChoques} impactos/hora de avance.`;
+
+                // Cuchillas (Ciclos preventivos automáticos de 120 horas)
+                const horasDesdeCambio = (horasNetas % 120);
+                const filoScore = (100 - (horasDesdeCambio / 120 * 100)).toFixed(0);
+                document.getElementById('health-blades-bar').style.width = `${filoScore}%`;
+                document.getElementById('health-blades-bar').className = filoScore > 25 ? "bg-blue-500 h-full" : "bg-orange-500 h-full animate-pulse";
+                document.getElementById('health-blades-badge').innerText = `${filoScore}%`;
+                document.getElementById('health-blades-badge').className = filoScore > 25 ? "text-xs font-bold px-2 py-0.5 rounded bg-blue-950 text-blue-400" : "text-xs font-bold px-2 py-0.5 rounded bg-orange-950 text-orange-400";
+                document.getElementById('health-blades-desc').innerText = `Reemplazar juego compatible en ${120 - horasDesdeCambio}h de corte neto.`;
+
+                // 6. MAPA SATELITAL GPS
+                if (attrs.positions && attrs.positions.length > 0) {
+                    const latLngs = attrs.positions.map(p => [p.latitude, p.longitude]);
+                    
+                    if (!mapaL) {
+                        mapaL = L.map('map', { attributionControl: false }).setView(latLngs[0], 20);
+                        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 22 }).addTo(mapaL);
+                        capaPuntos = L.layerGroup().addTo(mapaL);
+                    }
+
+                    capaPuntos.clearLayers();
+                    L.polyline(latLngs, { color: '#f97316', weight: 2, opacity: 0.4 }).addTo(capaPuntos);
+
+                    attrs.positions.forEach((pos, idx) => {
+                        L.circle([pos.latitude, pos.longitude], {
+                            color: idx === 0 ? '#ef4444' : '#f97316',
+                            fillColor: idx === 0 ? '#ef4444' : '#f97316',
+                            fillOpacity: idx === 0 ? 0.9 : 0.3,
+                            radius: idx === 0 ? 1.2 : 0.8
+                        }).addTo(capaPuntos);
+                    });
+                }
+
+            } catch (err) {
+                console.error("Error capturado:", err);
+                // Si algo se rompe, mostramos el chivato en rojo
+                document.getElementById('debug-box').classList.remove('hidden');
+                document.getElementById('debug-text').innerText = err.message;
+            }
+        }
+
+        // Arrancar motor de carga
+        document.addEventListener("DOMContentLoaded", () => {
+            cargarTodo();
+            setInterval(cargarTodo, 90000);
+        });
+    </script>
+</body>
+</html>
