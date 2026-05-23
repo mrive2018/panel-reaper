@@ -10,7 +10,6 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
         #map { height: 360px; z-index: 1; }
-        /* Filtro monocromo eliminado para ver el satélite a todo color */
     </style>
 </head>
 <body class="bg-gray-900 text-gray-100 min-h-screen font-sans">
@@ -21,16 +20,46 @@
                 <i class="fa-solid fa-gauge-high text-orange-500 text-2xl animate-pulse"></i>
                 <h1 class="text-xl font-bold tracking-wider" id="mower-name">Reaper Telemetry</h1>
             </div>
-            <span id="connection-status" class="px-3 py-1 rounded-full text-xs font-semibold bg-gray-700 text-gray-400">
-                Conectando...
-            </span>
+            <div class="flex items-center space-x-3">
+                <span id="connection-status" class="px-3 py-1 rounded-full text-xs font-semibold bg-gray-700 text-gray-400">
+                    Conectando...
+                </span>
+                <button onclick="toggleTaller()" class="bg-gray-700 hover:bg-gray-600 text-white p-2 rounded-lg text-sm transition shadow">
+                    <i class="fa-solid fa-screwdriver-wrench"></i>
+                </button>
+            </div>
         </div>
     </nav>
 
     <main class="max-w-5xl mx-auto p-4 md:p-6 space-y-6">
 
+        <div id="panel-taller" class="hidden bg-gray-800 border-2 border-orange-500/40 rounded-2xl p-5 shadow-2xl space-y-4 transition-all">
+            <div class="flex justify-between items-center border-b border-gray-700 pb-2">
+                <h3 class="text-base font-bold text-orange-400"><i class="fa-solid fa-gavel mr-2"></i> Calibración del Historial de Reaper</h3>
+                <button onclick="toggleTaller()" class="text-gray-400 hover:text-white text-sm">Cerrar ✕</button>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                    <label class="block text-xs text-gray-400 font-semibold mb-1">Puesta en Marcha Inicial:</label>
+                    <input type="date" id="cfg-fecha-inicio" class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-sm text-white">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-400 font-semibold mb-1">Último Cambio Cuchillas:</label>
+                    <input type="date" id="cfg-fecha-cuchillas" class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-sm text-white">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-400 font-semibold mb-1">Horas de la App ese día:</label>
+                    <input type="number" id="cfg-horas-cuchillas" placeholder="Ej. 120" class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-sm text-white">
+                </div>
+            </div>
+            <div class="flex justify-end pt-2">
+                <button onclick="guardarAjustesTaller()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-4 py-2 rounded-lg transition">
+                    Guardar y Sincronizar Datos Reales
+                </button>
+            </div>
+        </div>
+
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-            
             <div class="bg-gray-800 border border-gray-700 rounded-2xl p-5 shadow-xl flex flex-col justify-between">
                 <div>
                     <p class="text-xs text-gray-400 uppercase tracking-wider font-semibold">Actividad en Vivo</p>
@@ -70,7 +99,7 @@
                 <p class="text-xs text-gray-400 uppercase tracking-wider font-semibold">
                     <i class="fa-solid fa-map-location-dot text-emerald-500 mr-1"></i> Vista Satélite (Rastreo GPS en Finca)
                 </p>
-                <span class="text-[10px] bg-emerald-950 text-emerald-400 px-2 py-0.5 rounded border border-emerald-900">Últimas posiciones</span>
+                <span class="text-[10px] bg-emerald-950 text-emerald-400 px-2 py-0.5 rounded border border-emerald-800">Ubicación exacta</span>
             </div>
             <div id="map" class="rounded-xl overflow-hidden bg-gray-950 shadow-inner"></div>
         </div>
@@ -102,7 +131,7 @@
         </div>
 
         <h2 class="text-sm font-bold uppercase tracking-widest text-gray-400 pt-2 border-t border-gray-800">
-            <i class="fa-solid fa-heart-pulse text-red-500 mr-2"></i> Diagnóstico de Vida Útil Personalizado
+            <i class="fa-solid fa-heart-pulse text-red-500 mr-2"></i> Diagnóstico de Vida Útil Calibrado (Matriz de Verdad)
         </h2>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div class="bg-gray-800 border border-gray-700 rounded-2xl p-5 shadow-md">
@@ -159,6 +188,32 @@
             'NONE': 'En reposo'
         };
 
+        // Valores por defecto si localStorage está vacío
+        const valoresPorDefecto = {
+            fechaInicio: "2026-04-04",
+            fechaCuchillas: "2026-05-04",
+            horasCuchillas: "0"
+        };
+
+        function inicializarTallerInputs() {
+            document.getElementById('cfg-fecha-inicio').value = localStorage.getItem('reaper_fechaInicio') || valoresPorDefecto.fechaInicio;
+            document.getElementById('cfg-fecha-cuchillas').value = localStorage.getItem('reaper_fechaCuchillas') || valoresPorDefecto.fechaCuchillas;
+            document.getElementById('cfg-horas-cuchillas').value = localStorage.getItem('reaper_horasCuchillas') || valoresPorDefecto.horasCuchillas;
+        }
+
+        function toggleTaller() {
+            const p = document.getElementById('panel-taller');
+            p.classList.toggle('hidden');
+        }
+
+        function guardarAjustesTaller() {
+            localStorage.setItem('reaper_fechaInicio', document.getElementById('cfg-fecha-inicio').value);
+            localStorage.setItem('reaper_fechaCuchillas', document.getElementById('cfg-fecha-cuchillas').value);
+            localStorage.setItem('reaper_horasCuchillas', document.getElementById('cfg-horas-cuchillas').value);
+            toggleTaller();
+            cargarTodo();
+        }
+
         async function cargarTodo() {
             const txtAlerta = document.getElementById('debug-text');
             try {
@@ -168,21 +223,15 @@
                 const respuesta = await fetch('/api/reaper', { signal: controlador.signal });
                 clearTimeout(timeoutId);
 
-                if (!respuesta.ok) {
-                    txtAlerta.innerText = `❌ Error HTTP ${respuesta.status}`;
-                    return;
-                }
+                if (!respuesta.ok) return;
 
                 const json = await respuesta.json();
-                if (!json || !json.data || json.data.length === 0) {
-                    txtAlerta.innerText = "⚠️ Array 'data' vacío.";
-                    return;
-                }
+                if (!json || !json.data || json.data.length === 0) return;
 
                 const reaper = json.data[0];
                 const attrs = reaper.attributes || {};
 
-                // --- CIRCUITO 1: ESTADO ---
+                // --- TEXTOS ---
                 if (attrs.system) {
                     document.getElementById('mower-name').innerText = attrs.system.name || "Reaper Telemetry";
                     document.getElementById('mower-model').innerText = `${attrs.system.model || '--'}`;
@@ -198,21 +247,19 @@
 
                 const statusBadge = document.getElementById('connection-status');
                 if (attrs.metadata && attrs.metadata.connected) {
-                    statusBadge.innerText = "En Línea";
                     statusBadge.className = "px-3 py-1 rounded-full text-xs font-semibold bg-emerald-950 text-emerald-400 border border-emerald-800";
+                    statusBadge.innerText = "En Línea";
                 } else {
-                    statusBadge.innerText = "Fuera de Línea";
                     statusBadge.className = "px-3 py-1 rounded-full text-xs font-semibold bg-red-950 text-red-400 border border-red-800";
+                    statusBadge.innerText = "Fuera de Línea";
                 }
 
-                // --- CIRCUITO 2: ENERGÍA Y ALTURA ---
                 if (attrs.battery) {
                     const pct = attrs.battery.batteryPercent ?? 0;
                     document.getElementById('battery-text').innerText = `${pct}%`;
                     const bBar = document.getElementById('battery-bar');
                     bBar.style.width = `${pct}%`;
                     bBar.className = pct > 50 ? "bg-emerald-500 h-full" : (pct > 20 ? "bg-yellow-500 h-full" : "bg-red-500 h-full animate-pulse");
-                    
                     const rest = attrs.battery.remainingChargingTime;
                     document.getElementById('battery-details').innerText = rest > 0 ? `${rest} min para llenar` : "En descarga";
                 }
@@ -220,11 +267,9 @@
                     document.getElementById('cutting-height').innerText = attrs.settings.cuttingHeight ?? '--';
                 }
 
-                // --- CIRCUITO 3: ESTADÍSTICAS Y AJUSTES REALES ---
+                // --- ESTADÍSTICAS PROTEGIDAS ---
                 const stats = attrs.statistics || reaper.statistics || json.statistics || null;
-                if (!stats) {
-                    txtAlerta.innerText = "✅ Panel Vivo (Sin objeto statistics)";
-                } else {
+                if (stats) {
                     const totalDist = stats.totalDriveDistance ?? 0;
                     document.getElementById('stat-distance').innerText = `${(totalDist / 1000).toFixed(1)} km`;
                     document.getElementById('stat-collisions').innerText = stats.numberOfCollisions ?? "0";
@@ -234,58 +279,54 @@
                     const horasNetas = Math.round(totalCut / 3600);
                     document.getElementById('stat-hours').innerText = `${horasNetas} h`;
 
-                    // CALIBRACIÓN REAL DE BATERÍA (Basado en el inicio del 4 de Abril)
-                    // Una batería Husqvarna profesional aguanta unos 3500 ciclos antes de caer al 80%.
+                    // LECTURA DE LOCALSTORAGE PARA VERDAD ABSOLUTA
+                    const hInicio = localStorage.getItem('reaper_fechaInicio') || valoresPorDefecto.fechaInicio;
+                    const hCuchillasBase = parseInt(localStorage.getItem('reaper_horasCuchillas') || valoresPorDefecto.horasCuchillas);
+
+                    // 1. Batería Real
                     const numCycles = stats.numberOfChargingCycles || 0;
-                    const batHealthReal = Math.max(0, 100 - ((numCycles / 3500) * 20)).toFixed(1);
+                    const batHealthReal = Math.max(0, 100 - ((numCycles / 3200) * 20)).toFixed(1);
                     document.getElementById('health-battery-bar').style.width = `${batHealthReal}%`;
                     document.getElementById('health-battery-badge').innerText = `${batHealthReal}%`;
                     document.getElementById('health-battery-badge').className = "text-xs font-bold px-2 py-0.5 rounded bg-emerald-950 text-emerald-400";
-                    document.getElementById('health-battery-desc').innerText = `Salud real estimada sobre ${numCycles} ciclos totales desde el 4 de abril.`;
+                    document.getElementById('health-battery-desc').innerText = `Degradación basada en ${numCycles} ciclos de carga desde el inicio (${hInicio}).`;
 
-                    // Estrés de tracción
+                    // 2. Tracción
                     const runningTime = stats.totalRunningTime || 3600;
                     const ratioChoques = ((stats.numberOfCollisions || 0) / (runningTime / 3600)).toFixed(2);
                     document.getElementById('health-motor-badge').innerText = ratioChoques > 1.3 ? "Fricción Alta" : "Óptimo";
                     document.getElementById('health-motor-badge').className = ratioChoques > 1.3 ? "text-xs font-bold px-2 py-0.5 rounded bg-yellow-950 text-yellow-400" : "text-xs font-bold px-2 py-0.5 rounded bg-emerald-950 text-emerald-400";
-                    document.getElementById('health-motor-desc').innerText = `Media de ${ratioChoques} impactos mecánicos/hora.`;
+                    document.getElementById('health-motor-desc').innerText = `${ratioChoques} colisiones mecánicas por hora de avance.`;
 
-                    // CALIBRACIÓN CUCHILLAS ENDURANCE (Cambiadas el 4 de Mayo - Duración est. 45h de corte neto)
-                    // Usamos un módulo aproximado basado en la duración estándar de las Endurance a secas.
-                    const cicloCuchilla = 45; 
-                    const horasDesdeCambio = (horasNetas % cicloCuchilla);
-                    const filoScore = (100 - (horasDesdeCambio / cicloCuchilla * 100)).toFixed(0);
-                    
+                    // 3. CUCHILLAS ADAPTATIVAS (Endurance estándar = 45h netas)
+                    const vidaUtilEndurance = 45;
+                    let horasDeUsoEsteCiclo = horasNetas - hCuchillasBase;
+                    if(horasDeUsoEsteCiclo < 0) horasDeUsoEsteCiclo = 0; // Proteccion si el contador base es mayor
+
+                    const filoScore = Math.max(0, 100 - ((horasDeUsoEsteCiclo / vidaUtilEndurance) * 100)).toFixed(0);
                     document.getElementById('health-blades-bar').style.width = `${filoScore}%`;
                     document.getElementById('health-blades-bar').className = filoScore > 20 ? "bg-orange-500 h-full" : "bg-red-500 h-full animate-pulse";
                     document.getElementById('health-blades-badge').innerText = `${filoScore}%`;
                     document.getElementById('health-blades-badge').className = filoScore > 20 ? "text-xs font-bold px-2 py-0.5 rounded bg-orange-950 text-orange-400" : "text-xs font-bold px-2 py-0.5 rounded bg-red-950 text-red-400";
-                    document.getElementById('health-blades-desc').innerText = `Aproximadamente ${Math.max(0, cicloCuchilla - horasDesdeCambio)}h restantes para sustitución preventiva.`;
                     
-                    txtAlerta.innerText = "🚀 Sincronización exitosa. Telemetría y mapa satelital actualizados.";
+                    const horasRestantes = Math.max(0, vidaUtilEndurance - horasDeUsoEsteCiclo);
+                    document.getElementById('health-blades-desc').innerText = `Consumidas ${horasDeUsoEsteCiclo}h de corte neto. Quedan unas ${horasRestantes}h de filo útil.`;
+                    
+                    txtAlerta.innerText = "🚀 Sincronización exitosa. Datos calibrados por el usuario.";
                 }
 
-                // --- CIRCUITO 4: MAPA SATELITAL A COLOR ---
+                // --- MAPA SATELITAL ---
                 if (attrs.positions && attrs.positions.length > 0) {
                     const latLngs = attrs.positions.map(p => [p.latitude, p.longitude]);
                     if (!mapaL) {
-                        // Inicializa el mapa centrado en la última posición
                         mapaL = L.map('map', { attributionControl: false }).setView(latLngs[0], 19);
-                        
-                        // CAMBIO A SERVIDOR DE SATÉLITE REAL (ArcGIS World Imagery)
                         L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-                            maxZoom: 19,
-                            maxNativeZoom: 19
+                            maxZoom: 19, maxNativeZoom: 19
                         }).addTo(mapaL);
-                        
                         capaPuntos = L.layerGroup().addTo(mapaL);
                     }
                     capaPuntos.clearLayers();
-                    
-                    // Línea de trayectoria (Naranja intenso)
                     L.polyline(latLngs, { color: '#f97316', weight: 3, opacity: 0.85 }).addTo(capaPuntos);
-                    
-                    // Puntos de calor GPS
                     attrs.positions.forEach((pos, idx) => {
                         L.circle([pos.latitude, pos.longitude], {
                             color: idx === 0 ? '#ef4444' : '#fb923c',
@@ -302,6 +343,7 @@
         }
 
         function arrancarProceso() {
+            inicializarTallerInputs();
             cargarTodo();
             setInterval(cargarTodo, 90000);
         }
