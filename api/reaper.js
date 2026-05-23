@@ -3,7 +3,7 @@ export default async function handler(req, res) {
   const clientSecret = process.env.HUSQVARNA_CLIENT_SECRET;
 
   try {
-    // 1. Pedir el token usando el nuevo método oficial (client_credentials)
+    // 1. Pedir el token usando las credenciales de Vercel
     const authResponse = await fetch('https://api.authentication.husqvarnagroup.dev/v1/oauth2/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -22,11 +22,12 @@ export default async function handler(req, res) {
 
     const token = authData.access_token;
 
-    // 2. Pedir los datos de Reaper con el nuevo token
+    // 2. Pedir los datos de Reaper incluyendo la cabecera requerida
     const mowerResponse = await fetch('https://api.amc.husqvarna.dev/v1/mowers', {
       headers: {
         'Authorization': `Bearer ${token}`,
         'X-Api-Key': clientId,
+        'Authorization-Provider': 'Husqvarna', // <-- ¡La última pieza del puzle!
         'Content-Type': 'application/vnd.api+json'
       }
     });
