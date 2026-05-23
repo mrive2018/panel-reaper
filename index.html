@@ -160,69 +160,147 @@
         };
 
         async function cargarTodo() {
-            let jsonLog = "Inicio lectura.";
+            const txtAlerta = document.getElementById('debug-text');
+            // Pintamos inmediatamente la traza para verificar que el JS se está ejecutando
+            txtAlerta.innerHTML = "⏳ Conectando con <code class='bg-gray-900 px-1 text-orange-400'>/api/reaper</code>... Esperando respuesta de Vercel.";
+
             try {
-                const respuesta = await fetch('/api/reaper');
+                // Forzamos un aborto por tiempo si el servidor se cuelga (12 segundos)
+                const controlador = new AbortController();
+                const timeoutId = setTimeout(() => controlador.abort(), 12000);
+
+                const respuesta = await fetch('/api/reaper', { signal: controlador.signal });
+                clearTimeout(timeoutId);
+
                 if (!respuesta.ok) {
-                    document.getElementById('debug-text').innerText = `Error HTTP: ${respuesta.status}`;
+                    txtAlerta.innerText = `❌ Error de Red: El servidor respondió con código HTTP ${respuesta.status} (${respuesta.statusText})`;
                     return;
                 }
 
                 const json = await respuesta.json();
                 if (!json || !json.data || json.data.length === 0) {
-                    document.getElementById('debug-text').innerText = "La API responde bien, pero el array 'data' viene vacío.";
+                    txtAlerta.innerText = "⚠️ Alerta: Conexión con Vercel OK, pero el archivo de datos ('data') llegó vacío.";
                     return;
                 }
 
                 const reaper = json.data[0];
                 const attrs = reaper.attributes || {};
 
-                // ==========================================
-                // CIRCUITO 1: DATOS BÁSICOS Y ESTADO (AISLADO)
-                // ==========================================
-                try {
-                    if (attrs.system) {
-                        document.getElementById('mower-name').innerText = attrs.system.name || "Reaper";
-                        document.getElementById('mower-model').innerText = `${attrs.system.model || '--'} (S/N: ${attrs.system.serialNumber || '--'})`;
-                    }
-                    
-                    const act = attrs.mower ? attrs.mower.activity : 'NONE';
-                    document.getElementById('mower-status').innerText = traductorActividad[act] || act;
+                // --- CIRCUITO 1: DATOS GENERALES ---
+                if (attrs.system) {
+                    document.getElementById('mower-name').innerText = attrs.system.name || "Reaper Telemetry";
+                    document.getElementById('mower-model').innerText = `${attrs.system.model || '--'} (S/N: ${attrs.system.serialNumber || '--'})`;
+                }
+                
+                const act = attrs.mower ? attrs.mower.activity : 'NONE';
+                document.getElementById('mower-status').innerText = traductorActividad[act] || act;
 
-                    const iconDiv = document.getElementById('status-icon');
-                    if (act === 'MOWING') iconDiv.innerHTML = '<i class="fa-solid fa-circle-notch animate-spin text-emerald-400"></i>';
-                    else if (act === 'CHARGING') iconDiv.innerHTML = '<i class="fa-solid fa-bolt text-yellow-400"></i>';
-                    else iconDiv.innerHTML = '<i class="fa-solid fa-moon text-gray-400"></i>';
+                const iconDiv = document.getElementById('status-icon');
+                if (act === 'MOWING') iconDiv.innerHTML = '<i class="fa-solid fa-circle-notch animate-spin text-emerald-400"></i>';
+                else if (act === 'CHARGING') iconDiv.innerHTML = '<i class="fa-solid fa-bolt text-yellow-400"></i>';
+                else iconDiv.innerHTML = '<i class="fa-solid fa-moon text-gray-400"></i>';
 
-                    const statusBadge = document.getElementById('connection-status');
-                    if (attrs.metadata && attrs.metadata.connected) {
-                        statusBadge.innerText = "En Línea";
-                        statusBadge.className = "px-3 py-1 rounded-full text-xs font-semibold bg-emerald-950 text-emerald-400 border border-emerald-800";
-                    } else {
-                        statusBadge.innerText = "Fuera de Línea";
-                        statusBadge.className = "px-3 py-1 rounded-full text-xs font-semibold bg-red-950 text-red-400 border border-red-800";
-                    }
-                } catch (e) {
-                    console.error("Fallo en bloque básico:", e);
+                const statusBadge = document.getElementById('connection-status');
+                if (attrs.metadata && attrs.metadata.connected) {
+                    statusBadge.innerText = "En Línea";
+                    statusBadge.className = "px-3 py-1 rounded-full text-xs font-semibold bg-emerald-950 text-emerald-400 border border-emerald-800";
+                } else {
+                    statusBadge.innerText = "Fuera de Línea";
+                    statusBadge.className = "px-3 py-1 rounded-full text-xs font-semibold bg-red-950 text-red-400 border border-red-800";
                 }
 
-                // ==========================================
-                // CIRCUITO 2: ENERGÍA Y ALTURA (AISLADO)
-                // ==========================================
-                try {
-                    if (attrs.battery) {
-                        const pct = attrs.battery.batteryPercent ?? 0;
-                        document.getElementById('battery-text').innerText = `${pct}%`;
-                        
-                        const bBar = document.getElementById('battery-bar');
-                        bBar.style.width = `${pct}%`;
-                        bBar.className = pct > 50 ? "bg-emerald-500 h-full" : (pct > 20 ? "bg-yellow-500 h-full" : "bg-red-500 h-full animate-pulse");
+                // --- CIRCUITO 2: ENERGÍA ---
+                if (attrs.battery) {
+                    const pct = attrs.battery.batteryPercent ?? 0;
+                    document.getElementById('battery-text').innerText = `${pct}%`;
+                    const bBar = document.getElementById('battery-bar');
+                    bBar.style.width = `${pct}%`;
+                    bBar.className = pct > 50 ? "bg-emerald-500 h-full" : (pct > 20 ? "bg-yellow-500 h-full" : "bg-red-500 h-full animate-pulse");
+                    
+                    const rest = attrs.battery.remainingChargingTime;
+                    document.getElementById('battery-details').innerText = rest > 0 ? `${rest} min para llenar` : "En descarga";
+                }
+                if (attrs.settings) {
+                    document.getElementById('cutting-height').innerText = attrs.settings.cuttingHeight ?? '--';
+                }
 
-                        const rest = attrs.battery.remainingChargingTime;
-                        document.getElementById('battery-details').innerText = rest > 0 ? `${rest} min para llenar` : "En descarga";
+                // --- CIRCUITO 3: ESTADÍSTICAS PROTEGIDAS ---
+                const stats = attrs.statistics || reaper.statistics || json.statistics || null;
+                if (!stats) {
+                    document.getElementById('stat-distance').innerText = "N/D";
+                    document.getElementById('stat-collisions').innerText = "N/D";
+                    document.getElementById('stat-cycles').innerText = "N/D";
+                    document.getElementById('stat-hours').innerText = "N/D";
+                    txtAlerta.innerText = "✅ Panel Vivo. Nota: Estructura 'statistics' no detectada en la API.";
+                } else {
+                    const totalDist = stats.totalDriveDistance ?? 0;
+                    document.getElementById('stat-distance').innerText = `${(totalDist / 1000).toFixed(1)} km`;
+                    document.getElementById('stat-collisions').innerText = stats.numberOfCollisions ?? "0";
+                    document.getElementById('stat-cycles').innerText = stats.numberOfChargingCycles ?? "0";
+                    
+                    const totalCut = stats.totalCuttingTime ?? 0;
+                    const horasNetas = Math.round(totalCut / 3600);
+                    document.getElementById('stat-hours').innerText = `${horasNetas} h`;
+
+                    // Rendimiento técnico
+                    const numCycles = stats.numberOfChargingCycles || 0;
+                    const batHealth = Math.max(0, 100 - ((numCycles / 1500) * 100)).toFixed(0);
+                    document.getElementById('health-battery-bar').style.width = `${batHealth}%`;
+                    document.getElementById('health-battery-badge').innerText = `${batHealth}%`;
+                    document.getElementById('health-battery-desc').innerText = `${numCycles} ciclos leídos.`;
+
+                    const runningTime = stats.totalRunningTime || 3600;
+                    const ratioChoques = ((stats.numberOfCollisions || 0) / (runningTime / 3600)).toFixed(2);
+                    document.getElementById('health-motor-badge').innerText = ratioChoques > 1.1 ? "Estrés Alto" : "Normal";
+                    document.getElementById('health-motor-desc').innerText = `${ratioChoques} impactos/hora.`;
+
+                    const horasDesdeCambio = (horasNetas % 120);
+                    document.getElementById('health-blades-badge').innerText = `${(100 - (horasDesdeCambio / 120 * 100)).toFixed(0)}%`;
+                    document.getElementById('health-blades-desc').innerText = `${120 - horasDesdeCambio}h para cambio.`;
+                    
+                    txtAlerta.innerText = "🚀 Sincronización exitosa. Telemetría volcada al completo.";
+                }
+
+                // --- CIRCUITO 4: MAPA ---
+                if (attrs.positions && attrs.positions.length > 0) {
+                    const latLngs = attrs.positions.map(p => [p.latitude, p.longitude]);
+                    if (!mapaL) {
+                        mapaL = L.map('map', { attributionControl: false }).setView(latLngs[0], 20);
+                        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 22 }).addTo(mapaL);
+                        capaPuntos = L.layerGroup().addTo(mapaL);
                     }
-                    if (attrs.settings) {
-                        document.getElementById('cutting-height').innerText = attrs.settings.cuttingHeight ?? '--';
-                    }
-                } catch (e) {
-                    console.error("Fallo en bloque energía
+                    capaPuntos.clearLayers();
+                    L.polyline(latLngs, { color: '#f97316', weight: 2, opacity: 0.4 }).addTo(capaPuntos);
+                    attrs.positions.forEach((pos, idx) => {
+                        L.circle([pos.latitude, pos.longitude], {
+                            color: idx === 0 ? '#ef4444' : '#f97316',
+                            fillColor: idx === 0 ? '#ef4444' : '#f97316',
+                            fillOpacity: idx === 0 ? 0.9 : 0.3,
+                            radius: idx === 0 ? 1.2 : 0.8
+                        }).addTo(capaPuntos);
+                    });
+                }
+
+            } catch (err) {
+                if (err.name === 'AbortError') {
+                    txtAlerta.innerText = "❌ Error: Tiempo de espera agotado. La función /api/reaper tarda demasiado en responder o está caída.";
+                } else {
+                    txtAlerta.innerText = `❌ Error crítico en ejecución: ${err.message}`;
+                }
+            }
+        }
+
+        // Sistema de disparo seguro (Evita la pérdida del evento DOMContentLoaded)
+        function arrancarProceso() {
+            cargarTodo();
+            setInterval(cargarTodo, 90000);
+        }
+
+        if (document.readyState === "loading") {
+            document.addEventListener("DOMContentLoaded", arrancarProceso);
+        } else {
+            arrancarProceso();
+        }
+    </script>
+</body>
+</html>
