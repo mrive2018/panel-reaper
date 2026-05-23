@@ -3,43 +3,198 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Panel de Control - Reaper 550</title>
-    <style>
-        body { font-family: Arial, sans-serif; background-color: #121212; color: #ffffff; text-align: center; padding: 20px; }
-        .card { background-color: #1e1e1e; border-radius: 12px; padding: 20px; margin: 15px auto; max-width: 400px; box-shadow: 0 4px 10px rgba(0,0,0,0.5); border-left: 5px solid #ff5500; }
-        .status { font-size: 24px; font-weight: bold; color: #00ff00; }
-        .battery-bar { background-color: #333; border-radius: 10px; height: 20px; width: 80%; margin: 10px auto; overflow: hidden; }
-        .battery-level { background-color: #00ff00; height: 100%; width: 85%; }
-        .btn { background-color: #ff5500; color: white; border: none; padding: 10px 20px; font-size: 16px; border-radius: 5px; cursor: pointer; margin: 5px; font-weight: bold; }
-        .btn:hover { background-color: #e04e00; }
-    </style>
+    <title>Panel de Control - Reaper</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
-<body>
-    <h1>🚜 REAPER - AUTOMOWER 550 🚜</h1>
-    <p>Estado de la conexión: <span style="color: #00ff00; font-weight: bold;">● EN LÍNEA</span></p>
-    
-    <div class="card">
-        <h3>Estado del Robot</h3>
-        <div class="status">CORTANDO</div>
-        <p>Ubicación: Jardín Principal</p>
-    </div>
+<body class="bg-gray-900 text-gray-100 min-h-screen font-sans">
 
-    <div class="card">
-        <h3>Batería</h3>
-        <div class="battery-bar"><div class="battery-level"></div></div>
-        <p>85% - Unas 3 horas restantes de trabajo</p>
-    </div>
+    <nav class="bg-gray-800 border-b border-gray-700 p-4 sticky top-0 z-50">
+        <div class="max-w-5xl mx-auto flex justify-between items-center">
+            <div class="flex items-center space-x-3">
+                <i class="fa-solid fa-robot text-orange-500 text-2xl animate-pulse"></i>
+                <h1 class="text-xl font-bold tracking-wider" id="mower-name">Cargando...</h1>
+            </div>
+            <span id="connection-status" class="px-3 py-1 rounded-full text-xs font-semibold bg-gray-700 text-gray-400">
+                Desconectado
+            </span>
+        </div>
+    </nav>
 
-    <div class="card">
-        <h3>Cuchillas Endurance</h3>
-        <p>Horas de uso acumuladas: <strong>42 horas</strong></p>
-        <p>Estado estimado del filo: <span style="color: #ffcc00;">Bueno (70%)</span></p>
-    </div>
+    <main class="max-w-5xl mx-auto p-4 md:p-6 space-y-6">
 
-    <div class="card">
-        <h3>Controles de Emergencia</h3>
-        <button class="btn" onclick="alert('Orden enviada: PAUSAR el Automower...')">PAUSA</button>
-        <button class="btn" style="background-color: #444;" onclick="alert('Orden enviada: ENVIAR A LA ESTACIÓN DE CARGA...')">ESTACIÓN</button>
-    </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            
+            <div class="bg-gray-800 border border-gray-700 rounded-2xl p-6 flex flex-col justify-between shadow-xl">
+                <div>
+                    <p class="text-sm text-gray-400 uppercase tracking-wider font-semibold mb-1">Estado Actual</p>
+                    <h3 class="text-2xl font-bold text-white" id="mower-status">Consultando...</h3>
+                    <p class="text-xs text-gray-500 mt-1" id="mower-model">Modelo: --</p>
+                </div>
+                <div class="mt-6 flex justify-end">
+                    <div id="status-icon" class="w-12 h-12 rounded-full bg-gray-700 flex items-center justify-center text-xl text-gray-300">
+                        <i class="fa-solid fa-spinner animate-spin"></i>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-gray-800 border border-gray-700 rounded-2xl p-6 flex flex-col justify-between shadow-xl">
+                <div>
+                    <p class="text-sm text-gray-400 uppercase tracking-wider font-semibold mb-1">Batería</p>
+                    <div class="flex items-baseline space-x-2">
+                        <h3 class="text-4xl font-extrabold text-white" id="battery-text">--%</h3>
+                    </div>
+                    <div class="w-full bg-gray-700 rounded-full h-3 mt-4 overflow-hidden">
+                        <div id="battery-bar" class="bg-gray-500 h-full transition-all duration-500" style="width: 0%"></div>
+                    </div>
+                </div>
+                <p class="text-xs text-gray-500 mt-2" id="battery-details">Calculando...</p>
+            </div>
+
+            <div class="bg-gray-800 border border-gray-700 rounded-2xl p-6 flex flex-col justify-between shadow-xl">
+                <div>
+                    <p class="text-sm text-gray-400 uppercase tracking-wider font-semibold mb-1">Altura de Corte</p>
+                    <h3 class="text-4xl font-extrabold text-orange-400" id="cutting-height">--</h3>
+                    <p class="text-xs text-gray-500 mt-1">Nivel oficial configurado</p>
+                </div>
+                <div class="mt-4 bg-gray-700/50 rounded-xl p-2 text-center text-xs text-gray-300">
+                    <i class="fa-solid fa-sliders mr-1 text-orange-500"></i> Ajuste electrónico activo
+                </div>
+            </div>
+        </div>
+
+        <h2 class="text-lg font-bold tracking-wide text-gray-300 pt-4 border-t border-gray-800"><i class="fa-solid fa-chart-line text-orange-500 mr-2"></i>Telemetría Oculta del Servidor</h2>
+        
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            
+            <div class="bg-gray-800/60 border border-gray-700/50 rounded-xl p-4">
+                <p class="text-xs text-gray-400">Distancia Recorrida</p>
+                <p class="text-xl font-bold text-emerald-400 mt-1" id="stat-distance">-- km</p>
+                <p class="text-[10px] text-gray-500 mt-1">Odómetro histórico</p>
+            </div>
+
+            <div class="bg-gray-800/60 border border-gray-700/50 rounded-xl p-4">
+                <p class="text-xs text-gray-400">Impactos Registrados</p>
+                <p class="text-xl font-bold text-red-400 mt-1" id="stat-collisions">--</p>
+                <p class="text-[10px] text-gray-500 mt-1">Choques con obstáculos</p>
+            </div>
+
+            <div class="bg-gray-800/60 border border-gray-700/50 rounded-xl p-4">
+                <p class="text-xs text-gray-400">Ciclos de Carga</p>
+                <p class="text-xl font-bold text-blue-400 mt-1" id="stat-cycles">--</p>
+                <p class="text-[10px] text-gray-500 mt-1">Cargas completas</p>
+            </div>
+
+            <div class="bg-gray-800/60 border border-gray-700/50 rounded-xl p-4">
+                <p class="text-xs text-gray-400">Tiempo de Corte</p>
+                <p class="text-xl font-bold text-purple-400 mt-1" id="stat-hours">-- h</p>
+                <p class="text-[10px] text-gray-500 mt-1">Horas netas de cuchilla</p>
+            </div>
+
+        </div>
+
+    </main>
+
+    <script>
+        // Diccionario para traducir los estados de Husqvarna al español
+        const traductorActividad = {
+            'MOWING': 'Segando el jardín',
+            'STARTING': 'Arrancando motores',
+            'GOING_HOME': 'Regresando a la base',
+            'CHARGING': 'Cargando batería',
+            'PARKED': 'Estacionado',
+            'PAUSED': 'En pausa',
+            'STOPPED': 'Detenido',
+            'NONE': 'En reposo'
+        };
+
+        async function cargarDatosReaper() {
+            try {
+                // Llamamos a tu API secreta que acabamos de arreglar
+                const respuesta = await fetch('/api/reaper');
+                const json = await respuesta.json();
+                
+                // Extraemos los datos del primer robot del array
+                const reaper = json.data[0];
+                const attrs = reaper.attributes;
+
+                // 1. Datos Básicos Nav de cabecera
+                document.title = `Panel - ${attrs.system.name}`;
+                document.getElementById('mower-name').innerText = attrs.system.name;
+                
+                const conectado = attrs.metadata.connected;
+                const statusBadge = document.getElementById('connection-status');
+                if (conectado) {
+                    statusBadge.innerText = "En Línea";
+                    statusBadge.className = "px-3 py-1 rounded-full text-xs font-semibold bg-emerald-950 text-emerald-400 border border-emerald-800";
+                } else {
+                    statusBadge.innerText = "Fuera de Línea";
+                    statusBadge.className = "px-3 py-1 rounded-full text-xs font-semibold bg-red-950 text-red-400 border border-red-800";
+                }
+
+                // 2. Estado y Actividad
+                const actividadRaw = attrs.mower.activity;
+                const estadoVisual = traductorActividad[actividadRaw] || actividadRaw;
+                document.getElementById('mower-status').innerText = estadoVisual;
+                document.getElementById('mower-model').innerText = `Modelo: ${attrs.system.model}`;
+
+                // Icono dinámico según lo que haga
+                const iconDiv = document.getElementById('status-icon');
+                if (actividadRaw === 'MOWING') {
+                    iconDiv.innerHTML = '<i class="fa-solid fa-blade-levitating animate-spin text-emerald-400"></i>';
+                    iconDiv.className = "w-12 h-12 rounded-full bg-emerald-950/50 border border-emerald-800 flex items-center justify-center text-xl";
+                } else if (actividadRaw === 'CHARGING') {
+                    iconDiv.innerHTML = '<i class="fa-solid fa-bolt text-yellow-400 animate-bounce"></i>';
+                    iconDiv.className = "w-12 h-12 rounded-full bg-yellow-950/50 border border-yellow-800 flex items-center justify-center text-xl";
+                } else {
+                    iconDiv.innerHTML = '<i class="fa-solid fa-z"></i>';
+                    iconDiv.className = "w-12 h-12 rounded-full bg-gray-700 flex items-center justify-center text-xl";
+                }
+
+                // 3. Batería
+                const porcentaje = attrs.battery.batteryPercent;
+                document.getElementById('battery-text').innerText = `${porcentaje}%`;
+                
+                const barraBateria = document.getElementById('battery-bar');
+                barraBateria.style.width = `${porcentaje}%`;
+                
+                // Cambiar color de barra según carga
+                if (porcentaje > 50) barraBateria.className = "bg-emerald-500 h-full transition-all";
+                else if (porcentaje > 20) barraBateria.className = "bg-yellow-500 h-full transition-all";
+                else barraBateria.className = "bg-red-500 h-full transition-all animate-pulse";
+
+                const tiempoCarga = attrs.battery.remainingChargingTime;
+                document.getElementById('battery-details').innerText = tiempoCarga > 0 ? `Tiempo de carga: ${tiempoCarga} min` : "No está cargando";
+
+                // 4. Altura de corte
+                document.getElementById('cutting-height').innerText = attrs.settings.cuttingHeight;
+
+                // 5. TELEMETRÍA AVANZADA OCULTA
+                // Convertir metros a Kilómetros con 1 decimal
+                const kms = (attrs.statistics.totalDriveDistance / 1000).toFixed(1);
+                document.getElementById('stat-distance').innerText = `${kms} km`;
+                
+                // Colisiones
+                document.getElementById('stat-collisions').innerText = attrs.statistics.numberOfCollisions;
+                
+                // Ciclos
+                document.getElementById('stat-cycles').innerText = attrs.statistics.numberOfChargingCycles;
+                
+                // Horas de corte (de segundos a horas enteras)
+                const horasCorte = Math.round(attrs.statistics.totalCuttingTime / 3600);
+                document.getElementById('stat-hours').innerText = `${horasCorte} h`;
+
+            } catch (error) {
+                console.error("Error leyendo datos del servidor:", error);
+                document.getElementById('mower-status').innerText = "Error de conexión";
+            }
+        }
+
+        // Ejecutar la carga nada más abrir la web
+        cargarDatosReaper();
+        
+        // Auto-actualizar el panel cada 2 minutos automáticamente para no saturar la API
+        setInterval(cargarDatosReaper, 120000);
+    </script>
 </body>
 </html>
