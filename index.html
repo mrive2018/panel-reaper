@@ -3,21 +3,25 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Panel de Control - Reaper</title>
+    <title>Panel Avanzado - Reaper</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        #map { height: 350px; z-index: 1; }
+        .leaflet-tile { filter: grayscale(1) invert(1) opacity(0.6); } /* Mapa modo oscuro */
+    </style>
 </head>
 <body class="bg-gray-900 text-gray-100 min-h-screen font-sans">
 
     <nav class="bg-gray-800 border-b border-gray-700 p-4 sticky top-0 z-50">
         <div class="max-w-5xl mx-auto flex justify-between items-center">
             <div class="flex items-center space-x-3">
-                <i class="fa-solid fa-robot text-orange-500 text-2xl animate-pulse"></i>
-                <h1 class="text-xl font-bold tracking-wider" id="mower-name">Cargando...</h1>
+                <i class="fa-solid fa-microchip text-orange-500 text-2xl animate-pulse"></i>
+                <h1 class="text-xl font-bold tracking-wider" id="mower-name">Reaper Telemetry</h1>
             </div>
-            <span id="connection-status" class="px-3 py-1 rounded-full text-xs font-semibold bg-gray-700 text-gray-400">
-                Desconectado
-            </span>
+            <span id="connection-status" class="px-3 py-1 rounded-full text-xs font-semibold bg-gray-700 text-gray-400">Consultando API...</span>
         </div>
     </nav>
 
@@ -25,176 +29,192 @@
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
             
-            <div class="bg-gray-800 border border-gray-700 rounded-2xl p-6 flex flex-col justify-between shadow-xl">
-                <div>
-                    <p class="text-sm text-gray-400 uppercase tracking-wider font-semibold mb-1">Estado Actual</p>
-                    <h3 class="text-2xl font-bold text-white" id="mower-status">Consultando...</h3>
-                    <p class="text-xs text-gray-500 mt-1" id="mower-model">Modelo: --</p>
+            <div class="space-y-4 md:col-span-1">
+                <div class="bg-gray-800 border border-gray-700 rounded-2xl p-5 shadow-xl">
+                    <p class="text-xs text-gray-400 uppercase tracking-wider font-semibold">Actividad en Vivo</p>
+                    <h3 class="text-xl font-bold text-white mt-1" id="mower-status font-bold">Cargando...</h3>
+                    <p class="text-xs text-gray-500 id="mower-model" class="mt-1">--</p>
+                    <div class="mt-4 flex items-center space-x-3 bg-gray-900/50 p-3 rounded-xl border border-gray-700/30">
+                        <div id="battery-indicator" class="text-2xl text-emerald-400"><i class="fa-solid fa-battery-three-quarters"></i></div>
+                        <div>
+                            <p class="text-sm font-bold" id="battery-text">--%</p>
+                            <p class="text-[10px] text-gray-500" id="battery-details">--</p>
+                        </div>
+                    </div>
                 </div>
-                <div class="mt-6 flex justify-end">
-                    <div id="status-icon" class="w-12 h-12 rounded-full bg-gray-700 flex items-center justify-center text-xl text-gray-300">
-                        <i class="fa-solid fa-spinner animate-spin"></i>
+
+                <div class="bg-gray-800 border border-gray-700 rounded-2xl p-5 shadow-xl flex justify-between items-center">
+                    <div>
+                        <p class="text-xs text-gray-400 uppercase tracking-wider font-semibold">Altura de Cuchillas</p>
+                        <h4 class="text-3xl font-black text-orange-400 mt-1" id="cutting-height">--</h4>
+                    </div>
+                    <div class="text-right text-xs text-gray-500">
+                        <i class="fa-solid fa-scissors text-xl text-gray-600 mb-1 block"></i>
+                        Corte Electrónico
                     </div>
                 </div>
             </div>
 
-            <div class="bg-gray-800 border border-gray-700 rounded-2xl p-6 flex flex-col justify-between shadow-xl">
-                <div>
-                    <p class="text-sm text-gray-400 uppercase tracking-wider font-semibold mb-1">Batería</p>
-                    <div class="flex items-baseline space-x-2">
-                        <h3 class="text-4xl font-extrabold text-white" id="battery-text">--%</h3>
-                    </div>
-                    <div class="w-full bg-gray-700 rounded-full h-3 mt-4 overflow-hidden">
-                        <div id="battery-bar" class="bg-gray-500 h-full transition-all duration-500" style="width: 0%"></div>
-                    </div>
+            <div class="bg-gray-800 border border-gray-700 rounded-2xl p-4 shadow-xl md:col-span-2 overflow-hidden flex flex-col justify-between">
+                <div class="mb-2 flex justify-between items-center">
+                    <p class="text-xs text-gray-400 uppercase tracking-wider font-semibold"><i class="fa-solid fa-map-location-dot text-orange-500 mr-1"></i> Densidad de Paso (Zonas de Esfuerzo)</p>
+                    <span class="text-[10px] bg-orange-950 text-orange-400 px-2 py-0.5 rounded border border-orange-900">Últimos 50 puntos GPS</span>
                 </div>
-                <p class="text-xs text-gray-500 mt-2" id="battery-details">Calculando...</p>
-            </div>
-
-            <div class="bg-gray-800 border border-gray-700 rounded-2xl p-6 flex flex-col justify-between shadow-xl">
-                <div>
-                    <p class="text-sm text-gray-400 uppercase tracking-wider font-semibold mb-1">Altura de Corte</p>
-                    <h3 class="text-4xl font-extrabold text-orange-400" id="cutting-height">--</h3>
-                    <p class="text-xs text-gray-500 mt-1">Nivel oficial configurado</p>
-                </div>
-                <div class="mt-4 bg-gray-700/50 rounded-xl p-2 text-center text-xs text-gray-300">
-                    <i class="fa-solid fa-sliders mr-1 text-orange-500"></i> Ajuste electrónico activo
-                </div>
+                <div id="map" class="rounded-xl overflow-hidden bg-gray-950"></div>
             </div>
         </div>
 
-        <h2 class="text-lg font-bold tracking-wide text-gray-300 pt-4 border-t border-gray-800"><i class="fa-solid fa-chart-line text-orange-500 mr-2"></i>Telemetría Oculta del Servidor</h2>
+        <h2 class="text-lg font-bold tracking-wide text-gray-300 pt-2"><i class="fa-solid fa-heart-pulse text-red-500 mr-2"></i>Estimación de Vida Útil y Desgaste</h2>
         
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
             
-            <div class="bg-gray-800/60 border border-gray-700/50 rounded-xl p-4">
-                <p class="text-xs text-gray-400">Distancia Recorrida</p>
-                <p class="text-xl font-bold text-emerald-400 mt-1" id="stat-distance">-- km</p>
-                <p class="text-[10px] text-gray-500 mt-1">Odómetro histórico</p>
+            <div class="bg-gray-800 border border-gray-700 rounded-2xl p-5 shadow-md">
+                <div class="flex justify-between items-start">
+                    <p class="text-sm font-semibold text-gray-300">Salud de la Batería</p>
+                    <span id="health-battery-badge" class="text-xs font-bold px-2 py-0.5 rounded">--</span>
+                </div>
+                <div class="mt-4">
+                    <div class="w-full bg-gray-700 rounded-full h-2 overflow-hidden">
+                        <div id="health-battery-bar" class="h-full transition-all duration-500" style="width: 0%"></div>
+                    </div>
+                </div>
+                <p class="text-xs text-gray-500 mt-3" id="health-battery-desc">Calculando ciclos de degradación...</p>
             </div>
 
-            <div class="bg-gray-800/60 border border-gray-700/50 rounded-xl p-4">
-                <p class="text-xs text-gray-400">Impactos Registrados</p>
-                <p class="text-xl font-bold text-red-400 mt-1" id="stat-collisions">--</p>
-                <p class="text-[10px] text-gray-500 mt-1">Choques con obstáculos</p>
+            <div class="bg-gray-800 border border-gray-700 rounded-2xl p-5 shadow-md">
+                <div class="flex justify-between items-start">
+                    <p class="text-sm font-semibold text-gray-300">Índice de Estrés de Tracción</p>
+                    <span id="health-motor-badge" class="text-xs font-bold px-2 py-0.5 rounded">--</span>
+                </div>
+                <div class="mt-4">
+                    <div class="w-full bg-gray-700 rounded-full h-2 overflow-hidden">
+                        <div id="health-motor-bar" class="h-full transition-all duration-500" style="width: 0%"></div>
+                    </div>
+                </div>
+                <p class="text-xs text-gray-500 mt-3" id="health-motor-desc">Analizando ratio de colisión por hora...</p>
             </div>
 
-            <div class="bg-gray-800/60 border border-gray-700/50 rounded-xl p-4">
-                <p class="text-xs text-gray-400">Ciclos de Carga</p>
-                <p class="text-xl font-bold text-blue-400 mt-1" id="stat-cycles">--</p>
-                <p class="text-[10px] text-gray-500 mt-1">Cargas completas</p>
+            <div class="bg-gray-800 border border-gray-700 rounded-2xl p-5 shadow-md">
+                <div class="flex justify-between items-start">
+                    <p class="text-sm font-semibold text-gray-300">Filo de Cuchillas</p>
+                    <span id="health-blades-badge" class="text-xs font-bold px-2 py-0.5 rounded">--</span>
+                </div>
+                <div class="mt-4">
+                    <div class="w-full bg-gray-700 rounded-full h-2 overflow-hidden">
+                        <div id="health-blades-bar" class="h-full transition-all duration-500" style="width: 0%"></div>
+                    </div>
+                </div>
+                <p class="text-xs text-gray-500 mt-3" id="health-blades-desc">Seguimiento de horas netas de corte...</p>
             </div>
-
-            <div class="bg-gray-800/60 border border-gray-700/50 rounded-xl p-4">
-                <p class="text-xs text-gray-400">Tiempo de Corte</p>
-                <p class="text-xl font-bold text-purple-400 mt-1" id="stat-hours">-- h</p>
-                <p class="text-[10px] text-gray-500 mt-1">Horas netas de cuchilla</p>
-            </div>
-
         </div>
 
     </main>
 
     <script>
-        // Diccionario para traducir los estados de Husqvarna al español
-        const traductorActividad = {
-            'MOWING': 'Segando el jardín',
-            'STARTING': 'Arrancando motores',
-            'GOING_HOME': 'Regresando a la base',
-            'CHARGING': 'Cargando batería',
-            'PARKED': 'Estacionado',
-            'PAUSED': 'En pausa',
-            'STOPPED': 'Detenido',
-            'NONE': 'En reposo'
-        };
+        let mapaL = null;
+        let capaPuntos = null;
 
-        async function cargarDatosReaper() {
+        async function actualizarPanelAvanzado() {
             try {
-                // Llamamos a tu API secreta que acabamos de arreglar
                 const respuesta = await fetch('/api/reaper');
                 const json = await respuesta.json();
-                
-                // Extraemos los datos del primer robot del array
                 const reaper = json.data[0];
                 const attrs = reaper.attributes;
+                const stats = reaper.statistics;
 
-                // 1. Datos Básicos Nav de cabecera
-                document.title = `Panel - ${attrs.system.name}`;
+                // 1. Textos e indicadores básicos
                 document.getElementById('mower-name').innerText = attrs.system.name;
+                document.getElementById('mower-model').innerText = `${attrs.system.model} (S/N: ${attrs.system.serialNumber})`;
                 
-                const conectado = attrs.metadata.connected;
-                const statusBadge = document.getElementById('connection-status');
-                if (conectado) {
-                    statusBadge.innerText = "En Línea";
-                    statusBadge.className = "px-3 py-1 rounded-full text-xs font-semibold bg-emerald-950 text-emerald-400 border border-emerald-800";
-                } else {
-                    statusBadge.innerText = "Fuera de Línea";
-                    statusBadge.className = "px-3 py-1 rounded-full text-xs font-semibold bg-red-950 text-red-400 border border-red-800";
-                }
-
-                // 2. Estado y Actividad
-                const actividadRaw = attrs.mower.activity;
-                const estadoVisual = traductorActividad[actividadRaw] || actividadRaw;
-                document.getElementById('mower-status').innerText = estadoVisual;
-                document.getElementById('mower-model').innerText = `Modelo: ${attrs.system.model}`;
-
-                // Icono dinámico según lo que haga
-                const iconDiv = document.getElementById('status-icon');
-                if (actividadRaw === 'MOWING') {
-                    iconDiv.innerHTML = '<i class="fa-solid fa-blade-levitating animate-spin text-emerald-400"></i>';
-                    iconDiv.className = "w-12 h-12 rounded-full bg-emerald-950/50 border border-emerald-800 flex items-center justify-center text-xl";
-                } else if (actividadRaw === 'CHARGING') {
-                    iconDiv.innerHTML = '<i class="fa-solid fa-bolt text-yellow-400 animate-bounce"></i>';
-                    iconDiv.className = "w-12 h-12 rounded-full bg-yellow-950/50 border border-yellow-800 flex items-center justify-center text-xl";
-                } else {
-                    iconDiv.innerHTML = '<i class="fa-solid fa-z"></i>';
-                    iconDiv.className = "w-12 h-12 rounded-full bg-gray-700 flex items-center justify-center text-xl";
-                }
-
-                // 3. Batería
-                const porcentaje = attrs.battery.batteryPercent;
-                document.getElementById('battery-text').innerText = `${porcentaje}%`;
+                const traductor = {'MOWING': 'Segando', 'STARTING': 'Arrancando', 'GOING_HOME': 'Regresando a base', 'CHARGING': 'Cargando', 'PARKED': 'Estacionado', 'PAUSED': 'Pausado'};
+                document.getElementById('mower-status font-bold').innerText = traductor[attrs.mower.activity] || attrs.mower.activity;
                 
-                const barraBateria = document.getElementById('battery-bar');
-                barraBateria.style.width = `${porcentaje}%`;
-                
-                // Cambiar color de barra según carga
-                if (porcentaje > 50) barraBateria.className = "bg-emerald-500 h-full transition-all";
-                else if (porcentaje > 20) barraBateria.className = "bg-yellow-500 h-full transition-all";
-                else barraBateria.className = "bg-red-500 h-full transition-all animate-pulse";
-
-                const tiempoCarga = attrs.battery.remainingChargingTime;
-                document.getElementById('battery-details').innerText = tiempoCarga > 0 ? `Tiempo de carga: ${tiempoCarga} min` : "No está cargando";
-
-                // 4. Altura de corte
+                document.getElementById('battery-text').innerText = `${attrs.battery.batteryPercent}%`;
+                document.getElementById('battery-details').innerText = attrs.battery.remainingChargingTime > 0 ? `Cargando: ${attrs.battery.remainingChargingTime} min` : 'Trabajando en finca';
                 document.getElementById('cutting-height').innerText = attrs.settings.cuttingHeight;
 
-                // 5. TELEMETRÍA AVANZADA OCULTA
-                // Convertir metros a Kilómetros con 1 decimal
-                const kms = (attrs.statistics.totalDriveDistance / 1000).toFixed(1);
-                document.getElementById('stat-distance').innerText = `${kms} km`;
+                const statusBadge = document.getElementById('connection-status');
+                statusBadge.innerText = attrs.metadata.connected ? "Servidor Conectado" : "Sin respuesta del robot";
+                statusBadge.className = attrs.metadata.connected ? "px-3 py-1 rounded-full text-xs font-semibold bg-emerald-950 text-emerald-400 border border-emerald-800" : "px-3 py-1 rounded-full text-xs font-semibold bg-red-950 text-red-400 border border-red-800";
+
+                // 2. SISTEMA DE MAPA Y DENSIDAD (MAPA DE CALOR LOW-COST)
+                if (attrs.positions && attrs.positions.length > 0) {
+                    const centro = [attrs.positions[0].latitude, attrs.positions[0].longitude];
+                    
+                    if (!mapaL) {
+                        mapaL = L.map('map', { attributionControl: false }).setView(centro, 19);
+                        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 21 }).addTo(mapaL);
+                        capaPuntos = L.layerGroup().addTo(mapaL);
+                    }
+
+                    capaPuntos.clearLayers();
+
+                    // Dibujamos la línea de ruta
+                    const coordenadasRuta = attrs.positions.map(p => [p.latitude, p.longitude]);
+                    L.polyline(coordenadasRuta, { color: '#f97316', weight: 2, opacity: 0.5 }).addTo(capaPuntos);
+
+                    // Añadimos círculos con alta transparencia. Las zonas donde se superpongan muchos círculos se verán más oscuras e intensas (Efecto mapa de calor)
+                    attrs.positions.forEach((pos, index) => {
+                        L.circle([pos.latitude, pos.longitude], {
+                            color: index === 0 ? '#ef4444' : '#f97316', // El primero (último sitio visto) en rojo fuerte
+                            fillColor: index === 0 ? '#ef4444' : '#f97316',
+                            fillOpacity: index === 0 ? 0.9 : 0.25,
+                            radius: index === 0 ? 1.5 : 1 // Círculo actual más grande
+                        }).addTo(capaPuntos);
+                    });
+                }
+
+                // 3. CÁLCULO DE TELEMETRÍA OCULTA (ALGORITMOS DE DESGASTE)
                 
-                // Colisiones
-                document.getElementById('stat-collisions').innerText = attrs.statistics.numberOfCollisions;
+                // A. SALUD DE LA BATERÍA
+                // Una batería Husqvarna dura unos 1500 ciclos en condiciones óptimas antes de caer del 80%
+                const ciclosMaximos = 1500;
+                const ciclosUsados = stats.numberOfChargingCycles;
+                const saludBateriaEst = Math.max(0, 100 - ((ciclosUsados / ciclosMaximos) * 100)).toFixed(0);
                 
-                // Ciclos
-                document.getElementById('stat-cycles').innerText = attrs.statistics.numberOfChargingCycles;
+                document.getElementById('health-battery-bar').style.width = `${saludBateriaEst}%`;
+                document.getElementById('health-battery-bar').className = saludBateriaEst > 85 ? "bg-emerald-500 h-full" : "bg-yellow-500 h-full";
+                document.getElementById('health-battery-badge').innerText = `${saludBateriaEst}%`;
+                document.getElementById('health-battery-badge').className = saludBateriaEst > 85 ? "text-xs font-bold px-2 py-0.5 rounded bg-emerald-950 text-emerald-400" : "text-xs font-bold px-2 py-0.5 rounded bg-yellow-950 text-yellow-400";
+                document.getElementById('health-battery-desc').innerText = `Lleva ${ciclosUsados} cargas. Pérdida por desgaste químico: ${(100 - saludBateriaEst).toFixed(1)}%.`;
+
+                // B. ESTRÉS DE MOTORES Y TRACCIÓN (Choques por hora de funcionamiento)
+                // Calculamos cuántas veces choca el robot por cada hora de movimiento real
+                const horasDeUso = stats.totalRunningTime / 3600;
+                const choquesPorHora = (stats.numberOfCollisions / horasDeUso).toFixed(2);
                 
-                // Horas de corte (de segundos a horas enteras)
-                const horasCorte = Math.round(attrs.statistics.totalCuttingTime / 3600);
-                document.getElementById('stat-hours').innerText = `${horasCorte} h`;
+                // Consideramos un jardín óptimo menos de 0.8 impactos/hora. Más de 1.5 es un terreno hostil.
+                let estresMotores = 100 - (choquesPorHora * 40); 
+                estresMotores = Math.min(100, Math.max(5, estresMotores)).toFixed(0);
+                
+                document.getElementById('health-motor-bar').style.width = `${estresMotores}%`;
+                document.getElementById('health-motor-bar').className = estresMotores > 70 ? "bg-emerald-500 h-full" : "bg-red-500 h-full";
+                
+                const textoEstres = choquesPorHora > 1.2 ? "Fatiga Alta" : (choquesPorHora > 0.6 ? "Moderado" : "Lawn Suave");
+                document.getElementById('health-motor-badge').innerText = textoEstres;
+                document.getElementById('health-motor-badge').className = choquesPorHora > 1.2 ? "text-xs font-bold px-2 py-0.5 rounded bg-red-950 text-red-400" : "text-xs font-bold px-2 py-0.5 rounded bg-emerald-950 text-emerald-400";
+                document.getElementById('health-motor-desc').innerText = `Media de ${choquesPorHora} colisiones/hora. Sufre por obstáculos o rutilos en relieve.`;
+
+                // C. FILO DE CUCHILLAS (Mantenimiento Low-Cost)
+                // Las cuchillas originales pierden eficacia pasadas las 120 horas de corte neto
+                const horasCorteNeto = stats.totalCuttingTime / 3600;
+                // Simulamos un contador de mantenimiento basado en módulos de 120h
+                const horasDesdeUltimoCambio = (horasCorteNeto % 120).toFixed(0);
+                const vidaCuchillas = (100 - (horasDesdeUltimoCambio / 120 * 100)).toFixed(0);
+
+                document.getElementById('health-blades-bar').style.width = `${vidaCuchillas}%`;
+                document.getElementById('health-blades-bar').className = vidaCuchillas > 30 ? "bg-blue-500 h-full" : "bg-orange-500 h-full animate-pulse";
+                document.getElementById('health-blades-badge').innerText = `${vidaCuchillas}%`;
+                document.getElementById('health-blades-badge').className = vidaCuchillas > 30 ? "text-xs font-bold px-2 py-0.5 rounded bg-blue-950 text-blue-400" : "text-xs font-bold px-2 py-0.5 rounded bg-orange-950 text-orange-400";
+                document.getElementById('health-blades-desc').innerText = `Lleva unas ${horasDesdeUltimoCambio} horas de corte con este juego. Cambiar al llegar a las 120h.`;
 
             } catch (error) {
-                console.error("Error leyendo datos del servidor:", error);
-                document.getElementById('mower-status').innerText = "Error de conexión";
+                console.error("Error cargando telemetría avanzada:", error);
             }
         }
 
-        // Ejecutar la carga nada más abrir la web
-        cargarDatosReaper();
-        
-        // Auto-actualizar el panel cada 2 minutos automáticamente para no saturar la API
-        setInterval(cargarDatosReaper, 120000);
+        actualizarPanelAvanzado();
+        setInterval(actualizarPanelAvanzado, 90000); // Refrescar cada minuto y medio
     </script>
 </body>
 </html>
