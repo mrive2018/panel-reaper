@@ -4,56 +4,82 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Panel Total - Reaper</title>
-    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@3"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
     <style>
-        #map { height: 360px; z-index: 1; }
+        /* Estilos nativos para asegurar que se vea ESPECTACULAR sin librerías externas */
+        body { background-color: #111827; color: #f3f4f6; font-family: sans-serif; margin: 0; padding: 0; }
+        nav { background-color: #1f2937; border-b: 1px solid #374151; padding: 1rem; position: sticky; top: 0; z-index: 50; display: flex; justify-content: space-between; items-center: center; }
+        .nav-container { max-width: 1024px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; width: 100%; }
+        .flex-items { display: flex; align-items: center; gap: 0.75rem; }
+        h1 { margin: 0; font-size: 1.25rem; font-weight: bold; letter-spacing: 0.05em; }
+        main { max-width: 1024px; margin: 0 auto; padding: 1rem; display: flex; flex-direction: column; gap: 1.5rem; }
+        .grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; }
+        .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)); gap: 1.5rem; }
+        .grid-4 { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; }
+        .card { background-color: #1f2937; border: 1px solid #374151; border-radius: 1rem; padding: 1.25rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+        .card-mini { background-color: rgba(31, 41, 55, 0.6); border: 1px solid rgba(55, 65, 81, 0.5); border-radius: 0.75rem; padding: 1rem; }
+        .card-inner { background-color: rgba(17, 24, 39, 0.6); padding: 0.75rem; border-radius: 0.75rem; border: 1px solid rgba(55, 65, 81, 0.3); }
+        .text-muted { color: #9ca3af; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; margin: 0; }
+        .text-value { font-size: 1.5rem; font-weight: 900; margin: 0.25rem 0 0 0; }
+        .text-big { font-size: 2.25rem; font-weight: 900; margin: 0; }
+        .badge { padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; }
+        .badge-online { background-color: #064e3b; color: #34d399; border: 1px solid #065f46; }
+        .badge-offline { background-color: #7f1d1d; color: #f87171; border: 1px solid #991b1b; }
+        .progress-bar-bg { width: 100%; background-color: #4b5563; height: 0.75rem; border-radius: 9999px; mt: 0.75rem; overflow: hidden; margin-top: 0.75rem; }
+        .progress-bar { height: 100%; transition: all 0.5s ease; width: 0%; }
+        #map { height: 360px; border-radius: 0.75rem; background-color: #030712; z-index: 1; }
+        h2 { font-size: 0.875rem; font-weight: bold; text-transform: uppercase; letter-spacing: 0.1em; color: #9ca3af; margin: 0; padding-top: 0.5rem; border-top: 1px solid #1f2937; }
+        table { width: 100%; text-align: left; border-collapse: collapse; font-size: 0.75rem; }
+        th { background-color: #111827; color: #9ca3af; padding: 0.75rem; text-transform: uppercase; font-size: 0.65rem; letter-spacing: 0.05em; }
+        td { padding: 0.75rem; border-bottom: 1px solid #374151; }
+        .btn-taller { background-color: #374151; border: none; color: white; padding: 0.5rem; border-radius: 0.5rem; cursor: pointer; }
+        .btn-taller:hover { background-color: #4b5563; }
+        .panel-taller-box { background-color: #1f2937; border: 2px solid rgba(249, 115, 22, 0.4); border-radius: 1rem; padding: 1.25rem; display: flex; flex-direction: column; gap: 1rem; }
+        .hidden { display: none !important; }
+        .flex-row-justify { display: flex; justify-content: space-between; align-items: center; }
+        .flex-row-baseline { display: flex; align-items: baseline; gap: 0.5rem; }
     </style>
 </head>
-<body class="bg-gray-900 text-gray-100 min-h-screen font-sans">
+<body>
 
-    <nav class="bg-gray-800 border-b border-gray-700 p-4 sticky top-0 z-50">
-        <div class="max-w-5xl mx-auto flex justify-between items-center">
-            <div class="flex items-center space-x-3">
-                <i class="fa-solid fa-gauge-high text-orange-500 text-2xl animate-pulse"></i>
-                <h1 class="text-xl font-bold tracking-wider" id="mower-name">Reaper Telemetry</h1>
+    <nav>
+        <div class="nav-container">
+            <div class="flex-items">
+                <i class="fa-solid fa-gauge-high id='gauge-icon'" style="color: #f97316;"></i>
+                <h1 id="mower-name">Reaper Telemetry</h1>
             </div>
-            <div class="flex items-center space-x-3">
-                <span id="connection-status" class="px-3 py-1 rounded-full text-xs font-semibold bg-gray-700 text-gray-400">
-                    Conectando...
-                </span>
-                <button onclick="toggleTaller()" class="bg-gray-700 hover:bg-gray-600 text-white p-2 rounded-lg text-sm transition shadow">
-                    <i class="fa-solid fa-screwdriver-wrench"></i>
-                </button>
+            <div class="flex-items">
+                <span id="connection-status" class="badge badge-offline">Conectando...</span>
+                <button onclick="toggleTaller()" class="btn-taller"><i class="fa-solid fa-screwdriver-wrench"></i></button>
             </div>
         </div>
     </nav>
 
-    <main class="max-w-5xl mx-auto p-4 md:p-6 space-y-6">
-
-        <div id="panel-taller" class="hidden bg-gray-800 border-2 border-orange-500/40 rounded-2xl p-5 shadow-2xl space-y-4 transition-all">
-            <div class="flex justify-between items-center border-b border-gray-700 pb-2">
-                <h3 class="text-base font-bold text-orange-400"><i class="fa-solid fa-gavel mr-2"></i> Calibración del Historial de Reaper</h3>
-                <button onclick="toggleTaller()" class="text-gray-400 hover:text-white text-sm">Cerrar ✕</button>
+    <main>
+        <div id="panel-taller" class="panel-taller-box hidden">
+            <div class="flex-row-justify" style="border-bottom: 1px solid #374151; padding-bottom: 0.5rem;">
+                <h3 style="margin:0; font-size: 1rem; color: #f97316;"><i class="fa-solid fa-gavel"></i> Calibración del Historial de Reaper</h3>
+                <button onclick="toggleTaller()" style="background:none; border:none; color:#9ca3af; cursor:pointer;">Cerrar ✕</button>
             </div>
-            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="grid-4">
                 <div>
-                    <label class="block text-xs text-gray-400 font-semibold mb-1">Puesta en Marcha Inicial:</label>
-                    <input type="date" id="cfg-fecha-inicio" class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-sm text-white">
+                    <label style="display:block; font-size:0.75rem; color:#9ca3af; margin-bottom:0.25rem;">Puesta en Marcha Inicial:</label>
+                    <input type="date" id="cfg-fecha-inicio" style="width:90%; background:#111827; border:1px solid #374151; border-radius:4px; padding:0.5rem; color:white;">
                 </div>
                 <div>
-                    <label class="block text-xs text-gray-400 font-semibold mb-1">Último Cambio Cuchillas:</label>
-                    <input type="date" id="cfg-fecha-cuchillas" class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-sm text-white">
+                    <label style="display:block; font-size:0.75rem; color:#9ca3af; margin-bottom:0.25rem;">Último Cambio Cuchillas:</label>
+                    <input type="date" id="cfg-fecha-cuchillas" style="width:90%; background:#111827; border:1px solid #374151; border-radius:4px; padding:0.5rem; color:white;">
                 </div>
                 <div>
-                    <label class="block text-xs text-gray-400 font-semibold mb-1">Horas de la App ese día:</label>
-                    <input type="number" id="cfg-horas-cuchillas" placeholder="Ej. 120" class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-sm text-white">
+                    <label style="display:block; font-size:0.75rem; color:#9ca3af; margin-bottom:0.25rem;">Horas de la App ese día:</label>
+                    <input type="number" id="cfg-horas-cuchillas" style="width:90%; background:#111827; border:1px solid #374151; border-radius:4px; padding:0.5rem; color:white;">
                 </div>
                 <div>
-                    <label class="block text-xs text-gray-400 font-semibold mb-1">Modelo de Cuchilla Instalado:</label>
-                    <select id="cfg-tipo-cuchillas" class="w-full bg-gray-900 border border-gray-700 rounded p-2 text-sm text-white">
+                    <label style="display:block; font-size:0.75rem; color:#9ca3af; margin-bottom:0.25rem;">Modelo de Cuchilla Instalado:</label>
+                    <select id="cfg-tipo-cuchillas" style="width:100%; background:#111827; border:1px solid #374151; border-radius:4px; padding:0.5rem; color:white;">
                         <option value="25">Estándar / Classic (25h)</option>
                         <option value="45">Husqvarna Endurance (45h)</option>
                         <option value="75">Endurance HSS (75h)</option>
@@ -61,163 +87,346 @@
                     </select>
                 </div>
             </div>
-            <div class="flex justify-end pt-2">
-                <button onclick="guardarAjustesTaller()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-4 py-2 rounded-lg transition">
-                    Guardar y Sincronizar Datos Reales
-                </button>
+            <div style="display:flex; justify-content: flex-end;">
+                <button onclick="guardarAjustesTaller()" style="background-color:#059669; border:none; color:white; font-weight:bold; font-size:0.75rem; padding:0.5rem 1rem; border-radius:0.5rem; cursor:pointer;">Guardar y Sincronizar Datos Reales</button>
             </div>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div class="bg-gray-800 border border-gray-700 rounded-2xl p-5 shadow-xl flex flex-col justify-between">
+        <div class="grid-3">
+            <div class="card" style="display:flex; flex-direction:column; justify-content:space-between;">
                 <div>
-                    <p class="text-xs text-gray-400 uppercase tracking-wider font-semibold">Actividad en Vivo</p>
-                    <h3 class="text-2xl font-black text-white mt-1" id="mower-status">Cargando...</h3>
-                    <p class="text-xs text-gray-500 mt-1" id="mower-model">Modelo: --</p>
+                    <p class="text-muted">Actividad en Vivo</p>
+                    <h3 class="text-value" id="mower-status" style="font-size:1.5rem;">Cargando...</h3>
+                    <p id="mower-model" style="font-size:0.75rem; color:#6b7280; margin:0.25rem 0 0 0;">Modelo: --</p>
                 </div>
-                <div class="mt-4 flex justify-end">
-                    <div id="status-icon" class="w-10 h-10 rounded-full bg-gray-700 flex items-center justify-center text-gray-300">
-                        <i class="fa-solid fa-spinner animate-spin"></i>
-                    </div>
+                <div style="display:flex; justify-content:flex-end; margin-top:1rem;">
+                    <div id="status-icon" style="width:40px; height:40px; border-radius:50%; background:#374151; display:flex; align-items:center; justify-content:center;"><i class="fa-solid fa-spinner fa-spin"></i></div>
                 </div>
             </div>
 
-            <div class="bg-gray-800 border border-gray-700 rounded-2xl p-5 shadow-xl">
-                <p class="text-xs text-gray-400 uppercase tracking-wider font-semibold">Estado de Energía</p>
-                <div class="flex items-baseline space-x-2 mt-1">
-                    <h3 class="text-4xl font-black text-white" id="battery-text">--%</h3>
-                    <span class="text-xs text-gray-400" id="battery-details">--</span>
+            <div class="card">
+                <p class="text-muted">Estado de Energía</p>
+                <div class="flex-row-baseline" style="margin-top:0.25rem;">
+                    <h3 class="text-big" id="battery-text">--%</h3>
+                    <span id="battery-details" style="font-size:0.75rem; color:#9ca3af;">--</span>
                 </div>
-                <div class="w-full bg-gray-700 rounded-full h-3 mt-3 overflow-hidden">
-                    <div id="battery-bar" class="bg-gray-600 h-full transition-all duration-500" style="width: 0%"></div>
+                <div class="progress-bar-bg">
+                    <div id="battery-bar" class="progress-bar"></div>
                 </div>
             </div>
 
-            <div class="bg-gray-800 border border-gray-700 rounded-2xl p-5 shadow-xl flex justify-between items-center">
+            <div class="card" style="display:flex; justify-content:space-between; align-items:center;">
                 <div>
-                    <p class="text-xs text-gray-400 uppercase tracking-wider font-semibold">Altura de Corte</p>
-                    <h3 class="text-4xl font-black text-orange-400 mt-1" id="cutting-height">--</h3>
-                    <p class="text-[10px] text-gray-500 mt-1">Configuración actual</p>
+                    <p class="text-muted">Altura de Corte</p>
+                    <h3 class="text-big" id="cutting-height" style="color:#f97316;">--</h3>
+                    <p style="font-size:10px; color:#555; margin:0.25rem 0 0 0;">Configuración actual</p>
                 </div>
-                <div class="text-gray-600 text-3xl p-2"><i class="fa-solid fa-sliders"></i></div>
+                <div style="color:#4b5563; font-size:2rem;"><i class="fa-solid fa-sliders"></i></div>
             </div>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div class="bg-gray-800 border border-gray-700 rounded-2xl p-5 shadow-xl space-y-3">
-                <p class="text-xs text-gray-400 uppercase tracking-wider font-semibold">
-                    <i class="fa-solid fa-calendar-days text-blue-400 mr-1"></i> Agenda y Horario de Trabajo
-                </p>
-                <div class="bg-gray-900/60 p-3 rounded-xl space-y-2 border border-gray-700/30">
-                    <div class="flex justify-between text-xs">
-                        <span class="text-gray-400">Estado del Calendario:</span>
-                        <span id="cfg-agenda-estado" class="font-bold text-gray-400">--</span>
+        <div class="grid-2">
+            <div class="card" style="display:flex; flex-direction:column; gap:0.75rem;">
+                <p class="text-muted"><i class="fa-solid fa-calendar-days" style="color:#60a5fa; margin-right:0.25rem;"></i> Agenda y Horario de Trabajo</p>
+                <div class="card-inner" style="display:flex; flex-direction:column; gap:0.5rem; font-size:0.75rem;">
+                    <div class="flex-row-justify">
+                        <span style="color:#9ca3af;">Estado del Calendario:</span>
+                        <span id="cfg-agenda-estado" style="font-weight:bold;">--</span>
                     </div>
-                    <div class="flex justify-between text-xs">
-                        <span class="text-gray-400">Franja Programada:</span>
-                        <span id="cfg-agenda-franja" class="font-bold text-white">--</span>
+                    <div class="flex-row-justify">
+                        <span style="color:#9ca3af;">Franja Programada:</span>
+                        <span id="cfg-agenda-franja" style="font-weight:bold; color:white;">--</span>
                     </div>
-                    <div class="flex justify-between text-xs border-t border-gray-800 pt-2">
-                        <span class="text-gray-400">Próxima Acción de Corte:</span>
-                        <span id="cfg-agenda-proxima" class="font-bold text-orange-400">--</span>
+                    <div class="flex-row-justify" style="border-top:1px solid #2d3748; padding-top:0.5rem;">
+                        <span style="color:#9ca3af;">Próxima Acción de Corte:</span>
+                        <span id="cfg-agenda-proxima" style="font-weight:bold; color:#f97316;">--</span>
                     </div>
                 </div>
             </div>
 
-            <div class="bg-gray-800 border border-gray-700 rounded-2xl p-5 shadow-xl space-y-3">
-                <p class="text-xs text-gray-400 uppercase tracking-wider font-semibold">
-                    <i class="fa-solid fa-gear text-purple-400 mr-1"></i> Configuración Interna de Sistema
-                </p>
-                <div class="bg-gray-900/60 p-3 rounded-xl space-y-2 border border-gray-700/30">
-                    <div class="flex justify-between items-center text-xs">
-                        <span class="text-gray-400"><i class="fa-solid fa-leaf text-emerald-500 mr-1"></i> Modo Eco:</span>
-                        <span id="sys-mode-eco" class="px-2 py-0.5 rounded text-[10px] font-bold bg-gray-700 text-gray-400">--</span>
+            <div class="card" style="display:flex; flex-direction:column; gap:0.75rem;">
+                <p class="text-muted"><i class="fa-solid fa-gear" style="color:#c084fc; margin-right:0.25rem;"></i> Configuración Interna de Sistema</p>
+                <div class="card-inner" style="display:flex; flex-direction:column; gap:0.5rem; font-size:0.75rem;">
+                    <div class="flex-row-justify">
+                        <span style="color:#9ca3af;"><i class="fa-solid fa-leaf" style="color:#10b981; margin-right:0.25rem;"></i> Modo Eco:</span>
+                        <span id="sys-mode-eco" class="badge" style="background:#374151; color:#9ca3af; border-radius:4px; font-size:10px;">--</span>
                     </div>
-                    <div class="flex justify-between items-center text-xs">
-                        <span class="text-gray-400"><i class="fa-solid fa-satellite text-blue-400 mr-1"></i> Navegación Retorno:</span>
-                        <span id="sys-mode-retorno" class="font-semibold text-white">--</span>
+                    <div class="flex-row-justify">
+                        <span style="color:#9ca3af;"><i class="fa-solid fa-satellite" style="color:#60a5fa; margin-right:0.25rem;"></i> Navegación Retorno:</span>
+                        <span id="sys-mode-retorno" style="font-weight:600;">--</span>
                     </div>
-                    <div class="flex justify-between items-center text-xs">
-                        <span class="text-gray-400"><i class="fa-solid fa-lightbulb text-yellow-500 mr-1"></i> Faros Delanteros:</span>
-                        <span id="sys-mode-faros" class="font-semibold text-gray-500">--</span>
+                    <div class="flex-row-justify">
+                        <span style="color:#9ca3af;"><i class="fa-solid fa-lightbulb" style="color:#fbbf24; margin-right:0.25rem;"></i> Faros Delanteros:</span>
+                        <span id="sys-mode-faros" style="font-weight:600; color:#6b7280;">--</span>
                     </div>
                 </div>
             </div>
         </div>
 
-        <div class="bg-gray-800 border border-gray-700 rounded-2xl p-5 shadow-xl space-y-3">
-            <p class="text-xs text-gray-400 uppercase tracking-wider font-semibold">
-                <i class="fa-solid fa-triangle-exclamation text-red-400 mr-1"></i> Diagnóstico de Incidentes y Alertas
-            </p>
-            <div class="overflow-x-auto">
-                <table class="w-full text-left text-xs">
-                    <thead class="bg-gray-900 text-gray-400 uppercase tracking-wider text-[10px]">
+        <div class="card" style="display:flex; flex-direction:column; gap:0.75rem;">
+            <p class="text-muted"><i class="fa-solid fa-triangle-exclamation" style="color:#f87171; margin-right:0.25rem;"></i> Diagnóstico de Incidentes y Alertas</p>
+            <div style="overflow-x:auto; width:100%;">
+                <table>
+                    <thead>
                         <tr>
-                            <th class="p-3 rounded-l-lg">Estado de Alerta</th>
-                            <th class="p-3">Código Técnico</th>
-                            <th class="p-3">Descripción Operativa</th>
-                            <th class="p-3 rounded-r-lg text-right">Situación</th>
+                            <th style="border-top-left-radius:6px; border-bottom-left-radius:6px;">Estado de Alerta</th>
+                            <th>Código Técnico</th>
+                            <th>Descripción Operativa</th>
+                            <th style="text-align:right; border-top-right-radius:6px; border-bottom-right-radius:6px;">Situación</th>
                         </tr>
                     </thead>
                     <tbody id="tabla-errores-body">
                         <tr>
-                            <td colspan="4" class="p-3 text-center text-gray-500">Sin alertas activas reportadas por la API.</td>
+                            <td colspan="4" style="text-align:center; color:#4b5563; padding:1rem;">Sin alertas activas reportadas por la API.</td>
                         </tr>
                     </tbody>
                 </table>
             </div>
         </div>
 
-        <div class="bg-gray-800 border border-gray-700 rounded-2xl p-4 shadow-xl">
-            <div class="mb-2 flex justify-between items-center">
-                <p class="text-xs text-gray-400 uppercase tracking-wider font-semibold">
-                    <i class="fa-solid fa-map-location-dot text-emerald-500 mr-1"></i> Vista Satélite (Rastreo GPS en Finca)
-                </p>
-                <span class="text-[10px] bg-emerald-950 text-emerald-400 px-2 py-0.5 rounded border border-emerald-800">Ubicación exacta</span>
+        <div class="card" style="padding:1rem;">
+            <div class="flex-row-justify" style="margin-bottom:0.5rem;">
+                <p class="text-muted"><i class="fa-solid fa-map-location-dot" style="color:#10b981; margin-right:0.25rem;"></i> Vista Satélite (Rastreo GPS en Finca)</p>
+                <span style="font-size:10px; background:#064e3b; color:#34d399; padding:0.25rem 0.5rem; border-radius:4px; border:1px solid #065f46;">Ubicación exacta</span>
             </div>
-            <div id="map" class="rounded-xl overflow-hidden bg-gray-950 shadow-inner"></div>
+            <div id="map"></div>
         </div>
 
-        <h2 class="text-sm font-bold uppercase tracking-widest text-gray-400 pt-2 border-t border-gray-800">
-            <i class="fa-solid fa-database text-blue-400 mr-2"></i> Datos Brutos de Telemetría
-        </h2>
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div class="bg-gray-800/60 border border-gray-700/50 rounded-xl p-4 shadow-md">
-                <p class="text-xs text-gray-400">Distancia Recorrida</p>
-                <p class="text-xl font-bold text-emerald-400 mt-1" id="stat-distance">-- km</p>
-                <p class="text-[10px] text-gray-500 mt-0.5">Odómetro total</p>
+        <h2><i class="fa-solid fa-database" style="color:#60a5fa; margin-right:0.25rem;"></i> Datos Brutos de Telemetría</h2>
+        <div class="grid-4">
+            <div class="card-mini">
+                <p style="font-size:0.75rem; color:#9ca3af; margin:0;">Distancia Recorrida</p>
+                <p class="text-value" id="stat-distance" style="color:#34d399;">-- km</p>
+                <p style="font-size:10px; color:#555; margin:0;">Odómetro total</p>
             </div>
-            <div class="bg-gray-800/60 border border-gray-700/50 rounded-xl p-4 shadow-md">
-                <p class="text-xs text-gray-400">Impactos Registrados</p>
-                <p class="text-xl font-bold text-red-400 mt-1" id="stat-collisions">--</p>
-                <p class="text-[10px] text-gray-500 mt-0.5">Choques acumulados</p>
+            <div class="card-mini">
+                <p style="font-size:0.75rem; color:#9ca3af; margin:0;">Impactos Registrados</p>
+                <p class="text-value" id="stat-collisions" style="color:#f87171;">--</p>
+                <p style="font-size:10px; color:#555; margin:0;">Choques acumulados</p>
             </div>
-            <div class="bg-gray-800/60 border border-gray-700/50 rounded-xl p-4 shadow-md">
-                <p class="text-xs text-gray-400">Ciclos de Carga</p>
-                <p class="text-xl font-bold text-blue-400 mt-1" id="stat-cycles">--</p>
-                <p class="text-[10px] text-gray-500 mt-0.5">Cargas en base</p>
+            <div class="card-mini">
+                <p style="font-size:0.75rem; color:#9ca3af; margin:0;">Ciclos de Carga</p>
+                <p class="text-value" id="stat-cycles" style="color:#60a5fa;">--</p>
+                <p style="font-size:10px; color:#555; margin:0;">Cargas en base</p>
             </div>
-            <div class="bg-gray-800/60 border border-gray-700/50 rounded-xl p-4 shadow-md">
-                <p class="text-xs text-gray-400">Tiempo de Corte</p>
-                <p class="text-xl font-bold text-purple-400 mt-1" id="stat-hours">-- h</p>
-                <p class="text-[10px] text-gray-500 mt-0.5">Uso de cuchillas</p>
+            <div class="card-mini">
+                <p style="font-size:0.75rem; color:#9ca3af; margin:0;">Tiempo de Corte</p>
+                <p class="text-value" id="stat-hours" style="color:#c084fc;">-- h</p>
+                <p style="font-size:10px; color:#555; margin:0;">Uso de cuchillas</p>
             </div>
         </div>
 
-        <h2 class="text-sm font-bold uppercase tracking-widest text-gray-400 pt-2 border-t border-gray-800">
-            <i class="fa-solid fa-heart-pulse text-red-500 mr-2"></i> Diagnóstico de Vida Útil Calibrado (Matriz de Verdad)
-        </h2>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div class="bg-gray-800 border border-gray-700 rounded-2xl p-5 shadow-md">
-                <div class="flex justify-between items-start">
-                    <p class="text-sm font-semibold text-gray-300">Vida Útil Batería</p>
-                    <span id="health-battery-badge" class="text-xs font-bold px-2 py-0.5 rounded">--</span>
+        <h2><i class="fa-solid fa-heart-pulse" style="color:#ef4444; margin-right:0.25rem;"></i> Diagnóstico de Vida Útil Calibrado</h2>
+        <div class="grid-3">
+            <div class="card">
+                <div class="flex-row-justify">
+                    <p style="font-size:0.875rem; font-weight:600; margin:0;">Vida Útil Batería</p>
+                    <span id="health-battery-badge" class="badge text-muted" style="background:#064e3b; color:#34d399;">--</span>
                 </div>
-                <div class="mt-4 bg-gray-700 rounded-full h-2 overflow-hidden">
-                    <div id="health-battery-bar" class="h-full transition-all" style="width: 0%"></div>
-                </div>
-                <p class="text-xs text-gray-500 mt-3" id="health-battery-desc">Calculando...</p>
+                <div class="progress-bar-bg" style="height:0.5rem;"><div id="health-battery-bar" style="height:100%; background-color:#10b981;"></div></div>
+                <p style="font-size:0.75rem; color:#6b7280; margin-top:0.75rem;" id="health-battery-desc">Calculando...</p>
             </div>
-            <div class="bg-gray-800 border border-gray-700 rounded-2xl p-5 shadow-md">
-                <div class="flex justify-between items-start">
-                    <p class="text-sm font-semibold
+            <div class="card">
+                <div class="flex-row-justify">
+                    <p style="font-size:0.875rem; font-weight:600; margin:0;">Estrés de Tracción</p>
+                    <span id="health-motor-badge" class="badge text-muted" style="background:#064e3b; color:#34d399;">--</span>
+                </div>
+                <div class="progress-bar-bg" style="height:0.5rem;"><div id="health-motor-bar" style="height:100%; background-color:#10b981;"></div></div>
+                <p style="font-size:0.75rem; color:#6b7280; margin-top:0.75rem;" id="health-motor-desc">Calculando...</p>
+            </div>
+            <div class="card">
+                <div class="flex-row-justify">
+                    <p style="font-size:0.875rem; font-weight:600; margin:0;" id="health-blades-title">Filo de Cuchillas</p>
+                    <span id="health-blades-badge" class="badge text-muted">--</span>
+                </div>
+                <div class="progress-bar-bg" style="height:0.5rem;"><div id="health-blades-bar" style="height:100%;"></div></div>
+                <p style="font-size:0.75rem; color:#6b7280; margin-top:0.75rem;" id="health-blades-desc">Calculando...</p>
+            </div>
+        </div>
+
+        <div id="debug-box" class="card" style="padding:1rem;">
+            <p style="font-size:0.75rem; font-weight:bold; color:#9ca3af; margin:0;"><i class="fa-solid fa-code"></i> Estado del Mapeo de Datos:</p>
+            <p id="debug-text" style="font-size:0.75rem; color:#fbbf24; margin:0.25rem 0 0 0;">Esperando primera sincronización...</p>
+        </div>
+    </main>
+
+    <script>
+        let mapaL = null;
+        let capaPuntos = null;
+
+        const traductorActividad = {
+            'MOWING': 'Segando el jardín',
+            'STARTING': 'Arrancando motores',
+            'GOING_HOME': 'Regresando a base',
+            'CHARGING': 'Cargando batería',
+            'PARKED': 'Estacionado en base',
+            'PAUSED': 'En pausa',
+            'STOPPED': 'Detenido',
+            'NONE': 'En reposo'
+        };
+
+        const diccionarioErrores = {
+            0: 'Ningún problema detectado.',
+            1: 'Robot levantado (Sensor de elevación activo por bache o atasco).',
+            2: 'Robot atrapado (Las ruedas giran pero no avanza en el terreno).',
+            4: 'Fallo en sensor de colisión trasero.',
+            5: 'Sin señal de bucle (El cable perimetral no tiene corriente o la base está apagada).',
+            7: 'Fallo de corriente en el cable perimetral o señal debilitada.',
+            12: 'Fallo en la batería o voltaje extremadamente bajo.',
+            16: 'Fuera del área de trabajo (El robot ha cruzado el cable perimetral).',
+            18: 'Fallo en el sistema de arrastre / Motor de ruedas bloqueado.',
+            26: 'Inclinación excesiva (Pendiente superior al límite permitido).'
+        };
+
+        const valoresPorDefecto = {
+            fechaInicio: "2026-04-04",
+            fechaCuchillas: "2026-05-04",
+            horasCuchillas: "0",
+            tipoCuchillas: "45"
+        };
+
+        function inicializarTallerInputs() {
+            document.getElementById('cfg-fecha-inicio').value = localStorage.getItem('reaper_fechaInicio') || valoresPorDefecto.fechaInicio;
+            document.getElementById('cfg-fecha-cuchillas').value = localStorage.getItem('reaper_fechaCuchillas') || valoresPorDefecto.fechaCuchillas;
+            document.getElementById('cfg-horas-cuchillas').value = localStorage.getItem('reaper_horasCuchillas') || valoresPorDefecto.horasCuchillas;
+            document.getElementById('cfg-tipo-cuchillas').value = localStorage.getItem('reaper_tipoCuchillas') || valoresPorDefecto.tipoCuchillas;
+        }
+
+        function toggleTaller() {
+            const p = document.getElementById('panel-taller');
+            p.classList.toggle('hidden');
+        }
+
+        function guardarAjustesTaller() {
+            localStorage.setItem('reaper_fechaInicio', document.getElementById('cfg-fecha-inicio').value);
+            localStorage.setItem('reaper_fechaCuchillas', document.getElementById('cfg-fecha-cuchillas').value);
+            localStorage.setItem('reaper_horasCuchillas', document.getElementById('cfg-horas-cuchillas').value);
+            localStorage.setItem('reaper_tipoCuchillas', document.getElementById('cfg-tipo-cuchillas').value);
+            toggleTaller();
+            cargarTodo();
+        }
+
+        async function cargarTodo() {
+            const txtAlerta = document.getElementById('debug-text');
+            try {
+                const controlador = new AbortController();
+                const timeoutId = setTimeout(() => controlador.abort(), 12000);
+
+                const respuesta = await fetch('/api/reaper', { signal: controlador.signal });
+                clearTimeout(timeoutId);
+
+                if (!respuesta.ok) {
+                    txtAlerta.innerText = `❌ Error de API: Servidor respondió con código ${respuesta.status}`;
+                    return;
+                }
+
+                const json = await respuesta.json();
+                if (!json || !json.data || json.data.length === 0) {
+                    txtAlerta.innerText = "⚠️ Respuesta de API vacía o estructura incorrecta.";
+                    return;
+                }
+
+                const reaper = json.data[0];
+                const attrs = reaper.attributes || {};
+
+                // --- TEXTOS ---
+                if (attrs.system) {
+                    document.getElementById('mower-name').innerText = attrs.system.name || "Reaper Telemetry";
+                    document.getElementById('mower-model').innerText = `Modelo: ${attrs.system.model || '--'}`;
+                }
+                
+                const act = attrs.mower ? attrs.mower.activity : 'NONE';
+                document.getElementById('mower-status').innerText = traductorActividad[act] || act;
+
+                const iconDiv = document.getElementById('status-icon');
+                if (act === 'MOWING') iconDiv.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin" style="color:#34d399;"></i>';
+                else if (act === 'CHARGING') iconDiv.innerHTML = '<i class="fa-solid fa-bolt" style="color:#fbbf24;"></i>';
+                else iconDiv.innerHTML = '<i class="fa-solid fa-moon" style="color:#9ca3af;"></i>';
+
+                const statusBadge = document.getElementById('connection-status');
+                if (attrs.metadata && attrs.metadata.connected) {
+                    statusBadge.className = "badge badge-online";
+                    statusBadge.innerText = "En Línea";
+                } else {
+                    statusBadge.className = "badge badge-offline";
+                    statusBadge.innerText = "Fuera de Línea";
+                }
+
+                if (attrs.battery) {
+                    const pct = attrs.battery.batteryPercent ?? 0;
+                    document.getElementById('battery-text').innerText = `${pct}%`;
+                    const bBar = document.getElementById('battery-bar');
+                    bBar.style.width = `${pct}%`;
+                    bBar.style.backgroundColor = pct > 50 ? "#10b981" : (pct > 20 ? "#f59e0b" : "#ef4444");
+                    const rest = attrs.battery.remainingChargingTime;
+                    document.getElementById('battery-details').innerText = rest > 0 ? `${rest} min para llenar` : "En descarga";
+                }
+                if (attrs.settings) {
+                    document.getElementById('cutting-height').innerText = attrs.settings.cuttingHeight ?? '--';
+                }
+
+                // --- NUEVOS MÓDULOS DE LA API ---
+                if (attrs.calendar && attrs.calendar.tasks) {
+                    document.getElementById('cfg-agenda-estado').innerText = "Temporizador Activo";
+                    document.getElementById('cfg-agenda-estado').style.color = "#34d399";
+                    
+                    if (attrs.calendar.tasks.length > 0) {
+                        const t = attrs.calendar.tasks[0];
+                        const startH = String(Math.floor(t.start / 60)).padStart(2, '0');
+                        const startM = String(t.start % 60).padStart(2, '0');
+                        const endH = String(Math.floor(t.duration / 60)).padStart(2, '0');
+                        const endM = String(t.duration % 60).padStart(2, '0');
+                        document.getElementById('cfg-agenda-franja').innerText = `${startH}:${startM} a ${endH}:${endM}`;
+                    } else {
+                        document.getElementById('cfg-agenda-franja').innerText = "Sin restricciones";
+                    }
+                } else {
+                    document.getElementById('cfg-agenda-estado').innerText = "Manual / Sin Horario";
+                    document.getElementById('cfg-agenda-estado').style.color = "#9ca3af";
+                    document.getElementById('cfg-agenda-franja').innerText = "Continuo";
+                }
+
+                if (attrs.planner && attrs.planner.nextStartTimestamp) {
+                    const proxFecha = new Date(attrs.planner.nextStartTimestamp);
+                    const opciones = { weekday: 'short', hour: '2-digit', minute: '2-digit' };
+                    document.getElementById('cfg-agenda-proxima').innerText = `Salida: ${proxFecha.toLocaleDateString('es-ES', opciones)}`;
+                } else {
+                    document.getElementById('cfg-agenda-proxima').innerText = "Segando o En Espera Directa";
+                }
+
+                if (attrs.settings) {
+                    const eco = attrs.settings.ecoMode ?? false;
+                    const ecoSpan = document.getElementById('sys-mode-eco');
+                    if (eco) {
+                        ecoSpan.innerText = "ACTIVADO";
+                        ecoSpan.style.background = "#064e3b";
+                        ecoSpan.style.color = "#34d399";
+                    } else {
+                        ecoSpan.innerText = "DESACTIVADO";
+                        ecoSpan.style.background = "#374151";
+                        ecoSpan.style.color = "#9ca3af";
+                    }
+                }
+                
+                document.getElementById('sys-mode-retorno').innerText = attrs.system?.model?.includes('X') || attrs.system?.model?.includes('5') ? "GPS Asistido" : "Cable Guía Automático";
+                document.getElementById('sys-mode-faros').innerText = attrs.system?.model?.includes('X') ? "Automatizados" : "No Incorporados";
+
+                const tablaBody = document.getElementById('tabla-errores-body');
+                if (attrs.mower && attrs.mower.errorCode && attrs.mower.errorCode !== 0) {
+                    const errCod = attrs.mower.errorCode;
+                    const descTraducida = diccionarioErrores[errCod] || 'Alerta reportada por la máquina.';
+                    
+                    tablaBody.innerHTML = `
+                        <tr style="background-color: rgba(127, 29, 29, 0.2);">
+                            <td style="padding: 0.75rem; font-weight: bold; color: #f87171;"><i class="fa-solid fa-circle-exclamation"></i> STOP</td>
+                            <td style="padding: 0.75rem; font-family: monospace;">Code ${errCod}</td>
+                            <td style="padding: 0.75rem; color: white;">${descTraducida}</td>
+                            <td style="padding: 0.75rem; text-align: right;"><span class="badge" style="background:#7f1d1d; color:#f87171;">Activo</span></td>
+                        </tr>
+                    `;
+                } else {
+                    tablaBody.innerHTML = `
+                        <tr>
+                            <td style="padding: 0.75rem; font-weight: 600; color: #34d399;"><i class="fa-solid fa-circle-check"></i> Correcto</td>
+                            <td style="padding: 0.75rem; font-family: monospace; color:#6b7280;">Code 0</td>
+                            <td style="padding: 0.75rem; color: #9ca3af;">El sistema mecánico reporta cero
