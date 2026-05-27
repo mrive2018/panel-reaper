@@ -123,7 +123,6 @@
                 <div style="color:#4b5563; font-size:2rem;"><i class="fa-solid fa-sliders"></i></div>
             </div>
         </div>
-
         <div class="grid-2">
             <div class="card" style="display:flex; flex-direction:column; gap:0.75rem;">
                 <p class="text-muted"><i class="fa-solid fa-calendar-days" style="color:#60a5fa; margin-right:0.25rem;"></i> Agenda y Horario de Trabajo</p>
@@ -244,4 +243,238 @@
         </div>
 
         <div id="debug-box" class="card" style="padding:1rem;">
-            <p style="font-size:0.75rem; font-weight:bold; color:#9ca3af
+            <p style="font-size:0.75rem; font-weight:bold; color:#9ca3af; margin:0;"><i class="fa-solid fa-code"></i> Estado del Mapeo de Datos:</p>
+            <p id="debug-text" style="font-size:0.75rem; color:#fbbf24; margin:0.25rem 0 0 0;">Esperando primera sincronización...</p>
+        </div>
+    </main>
+
+    <script>
+        let mapaL = null;
+        let capaPuntos = null;
+
+        const traductorActividad = {
+            'MOWING': 'Segando el jardín',
+            'STARTING': 'Arrancando motores',
+            'GOING_HOME': 'Regresando a base',
+            'CHARGING': 'Cargando batería',
+            'PARKED': 'Estacionado en base',
+            'PAUSED': 'En pausa',
+            'STOPPED': 'Detenido',
+            'NONE': 'En reposo'
+        };
+
+        const diccionarioErrores = {
+            0: 'Ningún problema detectado.',
+            1: 'Robot levantado (Sensor de bache).',
+            2: 'Robot atrapado en el terreno.',
+            4: 'Fallo en sensor de colisión.',
+            5: 'Sin señal de cable perimetral.',
+            12: 'Batería muy baja.',
+            16: 'Fuera del área de trabajo.',
+            18: 'Motor de ruedas bloqueado.'
+        };
+
+        const valoresPorDefecto = {
+            fechaInicio: "2026-04-04",
+            fechaCuchillas: "2026-05-04",
+            horasCuchillas: "0",
+            tipoCuchillas: "45"
+        };
+
+        function inicializarTallerInputs() {
+            document.getElementById('cfg-fecha-inicio').value = localStorage.getItem('reaper_fechaInicio') || valoresPorDefecto.fechaInicio;
+            document.getElementById('cfg-fecha-cuchillas').value = localStorage.getItem('reaper_fechaCuchillas') || valoresPorDefecto.fechaCuchillas;
+            document.getElementById('cfg-horas-cuchillas').value = localStorage.getItem('reaper_horasCuchillas') || valoresPorDefecto.horasCuchillas;
+            document.getElementById('cfg-tipo-cuchillas').value = localStorage.getItem('reaper_tipoCuchillas') || valoresPorDefecto.tipoCuchillas;
+        }
+
+        function toggleTaller() {
+            document.getElementById('panel-taller').classList.toggle('hidden');
+        }
+
+        function guardarAjustesTaller() {
+            localStorage.setItem('reaper_fechaInicio', document.getElementById('cfg-fecha-inicio').value);
+            localStorage.setItem('reaper_fechaCuchillas', document.getElementById('cfg-fecha-cuchillas').value);
+            localStorage.setItem('reaper_horasCuchillas', document.getElementById('cfg-horas-cuchillas').value);
+            localStorage.setItem('reaper_tipoCuchillas', document.getElementById('cfg-tipo-cuchillas').value);
+            toggleTaller();
+            cargarTodo();
+        }
+
+        async function cargarTodo() {
+            const txtAlerta = document.getElementById('debug-text');
+            try {
+                const controlador = new AbortController();
+                const timeoutId = setTimeout(() => controlador.abort(), 12000);
+
+                const respuesta = await fetch('/api/reaper', { signal: controlador.signal });
+                clearTimeout(timeoutId);
+
+                if (!respuesta.ok) {
+                    txtAlerta.innerText = `❌ Error de API: Código ${respuesta.status}`;
+                    return;
+                }
+
+                const json = await respuesta.json();
+                if (!json || !json.data || json.data.length === 0) {
+                    txtAlerta.innerText = "⚠️ Respuesta de la API vacía.";
+                    return;
+                }
+
+                const reaper = json.data[0];
+                const attrs = reaper.attributes || {};
+
+                if (attrs.system) {
+                    document.getElementById('mower-name').innerText = attrs.system.name || "Reaper Telemetry";
+                    document.getElementById('mower-model').innerText = `Modelo: ${attrs.system.model || '--'}`;
+                }
+                
+                const act = attrs.mower ? attrs.mower.activity : 'NONE';
+                document.getElementById('mower-status').innerText = traductorActividad[act] || act;
+
+                const iconDiv = document.getElementById('status-icon');
+                if (act === 'MOWING') iconDiv.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin" style="color:#34d399;"></i>';
+                else if (act === 'CHARGING') iconDiv.innerHTML = '<i class="fa-solid fa-bolt" style="color:#fbbf24;"></i>';
+                else iconDiv.innerHTML = '<i class="fa-solid fa-moon" style="color:#9ca3af;"></i>';
+
+                const statusBadge = document.getElementById('connection-status');
+                if (attrs.metadata && attrs.metadata.connected) {
+                    statusBadge.className = "badge badge-online";
+                    statusBadge.innerText = "En Línea";
+                } else {
+                    statusBadge.className = "badge badge-offline";
+                    statusBadge.innerText = "Fuera de Línea";
+                }
+
+                if (attrs.battery) {
+                    const pct = attrs.battery.batteryPercent ?? 0;
+                    document.getElementById('battery-text').innerText = `${pct}%`;
+                    const bBar = document.getElementById('battery-bar');
+                    bBar.style.width = `${pct}%`;
+                    bBar.style.backgroundColor = pct > 50 ? "#10b981" : (pct > 20 ? "#f59e0b" : "#ef4444");
+                    const rest = attrs.battery.remainingChargingTime;
+                    document.getElementById('battery-details').innerText = rest > 0 ? `${rest} min para llenar` : "En descarga";
+                }
+
+                if (attrs.settings) {
+                    document.getElementById('cutting-height').innerText = attrs.settings.cuttingHeight ?? '--';
+                    const eco = attrs.settings.ecoMode ?? false;
+                    const ecoSpan = document.getElementById('sys-mode-eco');
+                    ecoSpan.innerText = eco ? "ACTIVADO" : "DESACTIVADO";
+                    ecoSpan.style.background = eco ? "#064e3b" : "#374151";
+                    ecoSpan.style.color = eco ? "#34d399" : "#9ca3af";
+                }
+
+                if (attrs.calendar && attrs.calendar.tasks) {
+                    document.getElementById('cfg-agenda-estado').innerText = "Temporizador Activo";
+                    document.getElementById('cfg-agenda-estado').style.color = "#34d399";
+                    if (attrs.calendar.tasks.length > 0) {
+                        const t = attrs.calendar.tasks[0];
+                        document.getElementById('cfg-agenda-franja').innerText = `${String(Math.floor(t.start / 60)).padStart(2, '0')}:${String(t.start % 60).padStart(2, '0')} a ${String(Math.floor(t.duration / 60)).padStart(2, '0')}:${String(t.duration % 60).padStart(2, '0')}`;
+                    } else {
+                        document.getElementById('cfg-agenda-franja').innerText = "Sin restricciones";
+                    }
+                } else {
+                    document.getElementById('cfg-agenda-estado').innerText = "Manual / Sin Horario";
+                    document.getElementById('cfg-agenda-franja').innerText = "Continuo";
+                }
+
+                if (attrs.planner && attrs.planner.nextStartTimestamp) {
+                    const proxFecha = new Date(attrs.planner.nextStartTimestamp);
+                    document.getElementById('cfg-agenda-proxima').innerText = `Salida: ${proxFecha.toLocaleDateString('es-ES', { weekday: 'short', hour: '2-digit', minute: '2-digit' })}`;
+                } else {
+                    document.getElementById('cfg-agenda-proxima').innerText = "Segando o En Espera";
+                }
+
+                document.getElementById('sys-mode-retorno').innerText = attrs.system?.model?.includes('X') ? "GPS Asistido" : "Cable Guía Automático";
+                document.getElementById('sys-mode-faros').innerText = attrs.system?.model?.includes('X') ? "Automatizados" : "No Incorporados";
+
+                const tablaBody = document.getElementById('tabla-errores-body');
+                if (attrs.mower && attrs.mower.errorCode && attrs.mower.errorCode !== 0) {
+                    tablaBody.innerHTML = `<tr style="background-color: rgba(127, 29, 29, 0.2);"><td style="padding:0.75rem; font-weight:bold; color:#f87171;"><i class="fa-solid fa-circle-exclamation"></i> STOP</td><td style="padding:0.75rem; font-family:monospace;">Code ${attrs.mower.errorCode}</td><td style="padding:0.75rem; color:white;">${diccionarioErrores[attrs.mower.errorCode] || 'Alerta mecánica.'}</td><td style="padding:0.75rem; text-align:right;"><span class="badge" style="background:#7f1d1d; color:#f87171;">Activo</span></td></tr>`;
+                } else {
+                    tablaBody.innerHTML = `<tr><td style="padding:0.75rem; font-weight:600; color:#34d399;"><i class="fa-solid fa-circle-check"></i> Correcto</td><td style="padding:0.75rem; font-family:monospace; color:#6b7280;">Code 0</td><td style="padding:0.75rem; color:#9ca3af;">Sistema operando con normalidad.</td><td style="padding:0.75rem; text-align:right;"><span class="badge" style="background:#064e3b; color:#34d399;">Limpio</span></td></tr>`;
+                }
+
+                const stats = attrs.statistics || reaper.statistics || json.statistics || null;
+                if (stats) {
+                    const totalDist = stats.totalDriveDistance ?? 0;
+                    document.getElementById('stat-distance').innerText = `${(totalDist / 1000).toFixed(1)} km`;
+                    document.getElementById('stat-collisions').innerText = stats.numberOfCollisions ?? "0";
+                    document.getElementById('stat-cycles').innerText = stats.numberOfChargingCycles ?? "0";
+                    
+                    const totalCut = stats.totalCuttingTime ?? 0;
+                    const horasNetas = Math.round(totalCut / 3600);
+                    document.getElementById('stat-hours').innerText = `${horasNetas} h`;
+
+                    const hInicio = localStorage.getItem('reaper_fechaInicio') || valoresPorDefecto.fechaInicio;
+                    const hCuchillasBase = parseInt(localStorage.getItem('reaper_horasCuchillas') || valoresPorDefecto.horasCuchillas);
+                    const vidaUtilSeleccionada = parseInt(localStorage.getItem('reaper_tipoCuchillas') || valoresPorDefecto.tipoCuchillas);
+
+                    let nombreCuchilla = "Filo: Personalizado";
+                    if(vidaUtilSeleccionada === 25) nombreCuchilla = "Filo: Estándar (25h)";
+                    else if(vidaUtilSeleccionada === 45) nombreCuchilla = "Filo: Endurance (45h)";
+                    else if(vidaUtilSeleccionada === 75) nombreCuchilla = "Filo: Endurance HSS (75h)";
+                    else if(vidaUtilSeleccionada === 70) nombreCuchilla = "Filo: Titanio (70h)";
+                    document.getElementById('health-blades-title').innerText = nombreCuchilla;
+
+                    const numCycles = stats.numberOfChargingCycles || 0;
+                    const batHealthReal = Math.max(0, 100 - ((numCycles / 3200) * 20)).toFixed(1);
+                    document.getElementById('health-battery-bar').style.width = `${batHealthReal}%`;
+                    document.getElementById('health-battery-badge').innerText = `${batHealthReal}%`;
+                    document.getElementById('health-battery-desc').innerText = `Basado en ${numCycles} ciclos desde inicio (${hInicio}).`;
+
+                    const runningTime = stats.totalRunningTime || 3600;
+                    const ratioChoques = ((stats.numberOfCollisions || 0) / (runningTime / 3600)).toFixed(2);
+                    document.getElementById('health-motor-badge').innerText = ratioChoques > 1.3 ? "Fricción Alta" : "Óptimo";
+                    document.getElementById('health-motor-badge').className = ratioChoques > 1.3 ? "badge badge-offline" : "badge badge-online";
+                    document.getElementById('health-motor-desc').innerText = `${ratioChoques} impactos por hora de avance.`;
+
+                    let horasDeUsoEsteCiclo = horasNetas - hCuchillasBase;
+                    if(horasDeUsoEsteCiclo < 0) horasDeUsoEsteCiclo = 0;
+
+                    const filoScore = Math.max(0, 100 - ((horasDeUsoEsteCiclo / vidaUtilSeleccionada) * 100)).toFixed(0);
+                    const bFilo = document.getElementById('health-blades-bar');
+                    bFilo.style.width = `${filoScore}%`;
+                    
+                    const badgeFilo = document.getElementById('health-blades-badge');
+                    badgeFilo.innerText = `${filoScore}%`;
+                    if(filoScore > 50) { bFilo.style.backgroundColor = "#10b981"; badgeFilo.style.background = "#064e3b"; badgeFilo.style.color = "#34d399"; }
+                    else if (filoScore > 20) { bFilo.style.backgroundColor = "#f59e0b"; badgeFilo.style.background = "#7c2d12"; badgeFilo.style.color = "#fb923c"; }
+                    else { bFilo.style.backgroundColor = "#ef4444"; badgeFilo.style.background = "#7f1d1d"; badgeFilo.style.color = "#f87171"; }
+                    
+                    document.getElementById('health-blades-desc').innerText = `Consumidas ${horasDeUsoEsteCiclo}h. Quedan unas ${Math.max(0, vidaUtilSeleccionada - horasDeUsoEsteCiclo)}h de filo estimado.`;
+                    txtAlerta.innerText = "🚀 Sincronización exitosa. Datos calibrados.";
+                }
+
+                if (attrs.positions && attrs.positions.length > 0) {
+                    const latLngs = attrs.positions.map(p => [p.latitude, p.longitude]);
+                    if (!mapaL) {
+                        mapaL = L.map('map', { attributionControl: false }).setView(latLngs[0], 19);
+                        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, maxNativeZoom: 19 }).addTo(mapaL);
+                        capaPuntos = L.layerGroup().addTo(mapaL);
+                    }
+                    capaPuntos.clearLayers();
+                    L.polyline(latLngs, { color: '#f97316', weight: 3, opacity: 0.85 }).addTo(capaPuntos);
+                    attrs.positions.forEach((pos, idx) => {
+                        L.circle([pos.latitude, pos.longitude], { color: idx === 0 ? '#ef4444' : '#fb923c', fillColor: idx === 0 ? '#ef4444' : '#fb923c', fillOpacity: idx === 0 ? 1.0 : 0.6, radius: idx === 0 ? 1.0 : 0.6 }).addTo(capaPuntos);
+                    });
+                }
+
+            } catch (err) {
+                txtAlerta.innerText = `❌ Error en ejecución: ${err.message}`;
+            }
+        }
+
+        function arrancarProceso() {
+            inicializarTallerInputs();
+            cargarTodo();
+            setInterval(cargarTodo, 90000);
+        }
+
+        window.onload = function() {
+            setTimeout(arrancarProceso, 1000);
+        };
+    </script>
+</body>
+</html>
