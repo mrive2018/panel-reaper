@@ -381,7 +381,9 @@
 
                 if (attrs.planner && attrs.planner.nextStartTimestamp) {
                     const proxFecha = new Date(attrs.planner.nextStartTimestamp);
-                    document.getElementById('cfg-agenda-proxima').innerText = `Salida: ${proxFecha.toLocaleDateString('es-ES', { weekday: 'short', hour: '2-digit', minute: '2-digit' })}`;
+                    const diaLimpio = proxFecha.toLocaleDateString('es-ES', { weekday: 'short' });
+                    const horaLimpia = proxFecha.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+                    document.getElementById('cfg-agenda-proxima').innerText = `Salida: ${diaLimpio}. ${horaLimpia}`;
                 } else {
                     document.getElementById('cfg-agenda-proxima').innerText = "Segando o En Espera";
                 }
