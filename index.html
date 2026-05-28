@@ -380,9 +380,13 @@
                 }
 
                 if (attrs.planner && attrs.planner.nextStartTimestamp) {
-                    const proxFecha = new Date(attrs.planner.nextStartTimestamp);
+                    // Convertimos a milisegundos y le RESTAMOS 2 horas exactas (2 * 60 * 60 * 1000)
+                    const timestampCorregido = attrs.planner.nextStartTimestamp - 7200000;
+                    const proxFecha = new Date(timestampCorregido);
+                    
                     const diaLimpio = proxFecha.toLocaleDateString('es-ES', { weekday: 'short' });
                     const horaLimpia = proxFecha.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+                    
                     document.getElementById('cfg-agenda-proxima').innerText = `Salida: ${diaLimpio}. ${horaLimpia}`;
                 } else {
                     document.getElementById('cfg-agenda-proxima').innerText = "Segando o En Espera";
