@@ -304,7 +304,7 @@
         function obtenerFactorEstacional() {
             const mesActual = new Date().getMonth(); // 0 = Enero, 5 = Junio, etc.
             if (mesActual >= 4 && mesActual <= 6) { 
-                return 1.4; // Mayo, Junio, Julio: Crecimiento salvaje, el filo sufre más
+                return 0.4; // Mayo, Junio, Julio: Crecimiento salvaje, el filo sufre más
             } else if (mesActual >= 10 || mesActual <= 1) { 
                 return 0.5; // Noviembre, Diciembre, Enero, Febrero: Hierba parada
             }
